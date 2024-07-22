@@ -219,6 +219,12 @@ void split(FL_table tbl, r_index<> ridx, vector<ulint> col_len, vector<ulint> co
     ulint total_width = 0;
     // ulint divided_rows = 0;
 
+    ulint half_tunnels = 0;
+    double max_consecutive_percent = 0;
+    double avg_consecutive_percent = 0;
+    ulint quarter_avg = 0;
+    ulint half_avg = 0;
+
     ulint c_id = 1;
     cursor = 0;
     vector<ulint>::iterator c_pos = col_pos.begin();
@@ -231,8 +237,10 @@ void split(FL_table tbl, r_index<> ridx, vector<ulint> col_len, vector<ulint> co
             total_width += *c_len;
             range rg = {i, *c_pos - N - run_start, N};
             vector<range> FL_ranges = FL_range(rg, tbl, ridx);
+            vector<ulint> fragments(*c_len, 0);
 
             for (size_t j = 0; j < *c_len; ++j) {
+                fragments[j] = FL_ranges.size();
                 vector<range> next_ranges;
                 for (size_t k = 0; k < FL_ranges.size(); ++k) {
                     rg = FL_ranges[k];
@@ -256,6 +264,22 @@ void split(FL_table tbl, r_index<> ridx, vector<ulint> col_len, vector<ulint> co
                 }
                 FL_ranges = next_ranges;
             }
+
+            if (fragments[*c_len/2] == 1) half_tunnels++;
+            quarter_avg += fragments[*c_len/4];
+            half_avg += fragments[*c_len/2];
+            ulint consecutive = 0;
+            for (size_t i = 0; i < *c_len; ++i) {
+                if (fragments[i] == 1) {
+                    ++consecutive;
+                }
+                else {
+                    break;
+                }
+            }
+            avg_consecutive_percent += double(consecutive)/(*c_len);
+            max_consecutive_percent = std::max(double(consecutive)/(*c_len), max_consecutive_percent);
+
             ++c_pos;
             ++c_len;
             ++c_id;
@@ -266,79 +290,234 @@ void split(FL_table tbl, r_index<> ridx, vector<ulint> col_len, vector<ulint> co
 
     cout << "Finished FL stepping\n";
 
-    ulint count_bv = 0;
-    ulint count_grouped = 0;
-    ulint curr_len = 0;
-    ulint others_added = 0;
-    ulint extra_runs = 0;
-    ulint bwt_covered = 0;
+    ulint curr_r_len = 0;
+    ulint bwt_runs = 0;
+    ulint head_runs = 0;
+    ulint tail_runs = 0;
+    ulint bwt_max_doc_percentage_sum = 0;
+    std::unordered_map<ulint, ulint> bwt_run_frequencies;
 
-    ulint total_len = 0;
+    ulint col_runs = 0;
+    ulint col_run_len = 0;
     ulint total_docs = 0;
-    ulint max_doc_percentage_sum = 0;
-    std::unordered_map<ulint, ulint> doc_frequencies;
+    ulint col_max_doc_percentage_sum = 0;
+    std::unordered_map<ulint, ulint> col_run_frequencies;
 
-    // std::ofstream fs_docs("temp.col_docs");
+    ulint uniq_runs = 0;
+    ulint uniq_runs_lens = 0;
+    ulint uniq_count = 0;
+    bool uniq = false;
 
     bool last = false;
-    for(size_t i = 0; i < covered_bv.size(); ++i) {
-        count_bv += covered_bv[i];
+    for (size_t i = 0; i < tbl.size(); ++i) {
         if (covered_bv[i]) {
-            if (!last) {
-                ++count_grouped;
-                if (!run_bv[i]) {
-                    ++extra_runs;
+            // Intersect BWT run-head
+            if (run_bv[i]) {
+                ++bwt_runs;
+                if (docs[i].size() == 1) {
+                    uniq_count += uniq_runs_lens;
+                    ++uniq_runs;
                 }
             }
-            else if (run_bv[i]) {
-                ++bwt_covered;
+            else if (uniq && docs[i].size() != 1) {
+                uniq_count += uniq_runs_lens;
+                uniq_runs_lens = 0;
             }
-            ++curr_len;
+
+            // New Run
+            if (!last) {
+                // Corresponds to start of BWT run
+                curr_r_len = 0;
+                col_run_len = 0;
+                uniq_runs_lens = 0;
+                if (!run_bv[i]) {
+                    ++head_runs;
+                    if (docs[i].size() == 1) ++uniq_runs_lens;
+                }
+                ++col_runs;
+            }
+            else {
+                // New BWT Run
+                if (run_bv[i]) {
+                    ulint max_freq = 0;
+                    for (const auto& pair : bwt_run_frequencies) {
+                        max_freq = std::max(max_freq, pair.second);
+                    }
+                    bwt_max_doc_percentage_sum += (double(max_freq) / curr_r_len)*100;
+                    curr_r_len = 0;
+                    uniq_runs_lens = 0;
+                    bwt_run_frequencies.clear();
+                }
+            }
+
+            ++col_run_len;
+            ++curr_r_len;
+            if (docs[i].size() == 1) ++uniq_runs_lens;
             for(const auto& doc : docs[i]) {
-                doc_frequencies[doc]++;
+                bwt_run_frequencies[doc]++;
+                col_run_frequencies[doc]++;
             }
         }
+        // End of COL run
         else if (!covered_bv[i] && last) {
-            others_added += !run_bv[i];
-            total_len += curr_len;
-            total_docs += doc_frequencies.size();
+            if (!run_bv[i]) {
+                ++tail_runs;
+            }
+            total_docs += col_run_frequencies.size();
 
             ulint max_freq = 0;
-            for (const auto& pair : doc_frequencies) {
+            for (const auto& pair : bwt_run_frequencies) {
                 max_freq = std::max(max_freq, pair.second);
             }
-            max_doc_percentage_sum += (double(max_freq) / curr_len)*100;
-            // fs_docs << curr_len << "\t" << doc_frequencies.size() << "\t";
-            // for (const auto& pair : doc_frequencies) {
-            //     fs_docs << pair.second << ",";
-            // }
-            // fs_docs << endl;
+            bwt_max_doc_percentage_sum += (double(max_freq) / curr_r_len)*100;
+            curr_r_len = 0;
+            bwt_run_frequencies.clear();
 
-            curr_len = 0;
-            doc_frequencies.clear();
+            max_freq = 0;
+            for (const auto& pair : col_run_frequencies) {
+                max_freq = std::max(max_freq, pair.second);
+            }
+            col_max_doc_percentage_sum += (double(max_freq) / col_run_len)*100;
+            col_run_len = 0;
+            col_run_frequencies.clear();
         }
         last = covered_bv[i];
-        // if (i % (tbl.size()/100) == 0) cout << i << "/" << tbl.size() << endl;
+        uniq = docs[i].size() == 1;
     }
-    assert(count_bv == colored_chars);
 
+    // ulint count_bv = 0;
+    // ulint count_grouped = 0;
+    // ulint curr_len = 0;
+    // ulint curr_bwt_len = 0;
+    // ulint total_bwt_len = 0;
+
+    // ulint others_added = 0;
+    // ulint extra_runs = 0;
+    // ulint bwt_covered = 0;
+
+    // ulint total_len = 0;
+    // ulint total_docs = 0;
+    // ulint max_doc_percentage_sum = 0;
+    // ulint max_doc_percentage_sum_bwt = 0;
+    // std::unordered_map<ulint, ulint> doc_frequencies;
+    // std::unordered_map<ulint, ulint> doc_frequencies_bwt;
+
+    // bool last = false;
+    // for(size_t i = 0; i < covered_bv.size(); ++i) {
+    //     count_bv += covered_bv[i];
+    //     if (covered_bv[i]) {
+    //         if (!last) {
+    //             ++count_grouped;
+    //             if (!run_bv[i]) {
+    //                 ++extra_runs;
+    //             }
+    //         }
+    //         else if (!last && run_bv[i]) {
+    //             curr_bwt_len = 0;
+    //         }
+    //         else if (last && run_bv[i]) {
+    //             total_bwt_len += curr_bwt_len;
+    //             bwt_covered++;
+
+    //             total_docs += doc_frequencies.size();
+
+    //             ulint max_freq = 0;
+    //             for (const auto& pair : doc_frequencies) {
+    //                 max_freq = std::max(max_freq, pair.second);
+    //             }
+    //             max_doc_percentage_sum += (double(max_freq) / curr_len)*100;
+
+    //             curr_len = 0;
+    //             doc_frequencies.clear();
+    //         }
+    //         ++curr_len;
+    //         for(const auto& doc : docs[i]) {
+    //             doc_frequencies[doc]++;
+    //             doc_frequencies_bwt[doc]++;
+    //         }
+    //     }
+    //     else if (!covered_bv[i] && last) {
+    //         others_added += !run_bv[i];
+    //         total_len += curr_len;
+    //         total_docs += doc_frequencies.size();
+
+    //         ulint max_freq = 0;
+    //         for (const auto& pair : doc_frequencies) {
+    //             max_freq = std::max(max_freq, pair.second);
+    //         }
+    //         max_doc_percentage_sum += (double(max_freq) / curr_len)*100;
+
+    //         curr_len = 0;
+    //         doc_frequencies.clear();
+    //     }
+    //     last = covered_bv[i];
+    // }
+    // assert(count_bv == colored_chars);
+
+    cout << "-----------GENERAL------------" << endl;
     cout << "            # MUMs: " << col_len.size() << endl;
-    cout << " Runs added (MUMs): " << count_grouped << endl;
-    cout << "Runs added (other): " << others_added << endl;
-    cout << "  Runs added (BWT): " << extra_runs + others_added << endl;
-    // cout << "Runs added (other): " << others_added << endl;
-    cout << "      Colored runs: "  << (extra_runs + bwt_covered + others_added) << endl;
-    cout << " % bwt run colored: " << (double(extra_runs + bwt_covered + others_added) / (tbl.runs() + extra_runs + others_added))*100 << endl;
-    cout << "    Possible added: " << colored_rows << endl;
-    cout << "        Total rows: " << (tbl.runs() + count_grouped + others_added) << endl;
-    cout << "       Rows before: " << tbl.runs() << endl;
-    cout << "    % runs colored: " << (double(count_grouped) / (tbl.runs() + count_grouped + others_added))*100 << endl;
-    cout << "   % chars colored: " << (double(colored_chars) / (tbl.size()))*100 << endl;
-    cout << "avg colored height: " << (double(total_len) / count_grouped) << endl;
     cout << "     avg MUM width: " << (double(total_width) / col_len.size()) << endl;
-    cout << "    avg color docs: " << (double(total_docs) / count_grouped) << endl;
-    cout << "avg color docs (r): " << (double(total_docs) / (extra_runs + bwt_covered)) << endl;
-    cout << "    majority doc %: " << (double(max_doc_percentage_sum) / count_grouped) << endl;
+    cout << "                 n: " << tbl.size() << endl;
+    cout << "     chars colored: " << colored_chars << endl;
+    cout << "   % chars colored: " << (double(colored_chars) / (tbl.size()))*100 << endl;
+    cout << "                 r: " << tbl.runs() << endl;
+    cout << "                 N: " << N << endl;
+    cout << "  avg MUM/COL-runs: " << (double(head_runs + bwt_runs) / col_runs) << endl;
+
+    cout << "-----------COL RUNS-----------" << endl;
+    cout << "        # COL-runs: " << col_runs << endl;
+    cout << "avg COL-run height: " << (double(colored_chars) / col_runs) << endl;
+    cout << "  avg BWT/COL-runs: " << (double(head_runs + bwt_runs + tail_runs) / col_runs) << endl;
+    cout << "    avg docs (COL): " << (double(total_docs) / col_runs) << endl;
+    cout << "    majority doc %: " << (double(col_max_doc_percentage_sum) / col_runs) << endl;
+
+    cout << "-----------MUM RUNS-----------" << endl;
+    cout << "        # MUM-runs: " << head_runs + bwt_runs << endl;
+    // cout << "       # head-runs: " << head_runs << endl;
+    cout << "       # tail-runs: " << tail_runs << endl;
+    cout << "    total BWT-runs: " << head_runs + tail_runs + tbl.runs() << endl;
+    cout << "      % r increase: " << double(head_runs + tail_runs + tbl.runs())/tbl.runs() << endl;
+    cout << "        % MUM-runs: " << double(head_runs + bwt_runs)/(head_runs + tail_runs + tbl.runs())*100 << endl;
+    cout << "avg MUM-run height: " << (double(colored_chars) / (head_runs + bwt_runs)) << endl;
+    cout << "    avg docs (COL): " << (double(total_docs) / (head_runs + bwt_runs)) << endl;
+    cout << "    majority doc %: " << (double(bwt_max_doc_percentage_sum) / (head_runs + bwt_runs)) << endl;
+
+    cout << "-----------OVERLAPs-----------" << endl;
+    cout << " # Nonoverlap-runs: " << uniq_runs << endl;
+    cout << "total non+BWT-runs: " << uniq_runs + tail_runs + tbl.runs() << endl;
+    cout << "  non-% r increase: " << double(uniq_runs + tail_runs + tbl.runs())/tbl.runs() << endl;
+    cout << "        % MUM-runs: " << double(uniq_runs)/(head_runs + tail_runs + tbl.runs())*100 << endl;
+    cout << "  avg uniq-run hgt: " << (double(uniq_count) / (uniq_runs)) << endl;
+    cout << "     overlap chars: " << colored_chars - uniq_count << endl;
+    cout << "        uniq chars: " << uniq_count << endl;
+    cout << "      uniq chars %: " << (double(uniq_count)/tbl.size())*100 << endl;
+    cout << " avg UNIQ/MUM-runs: " << (double(uniq_runs) / (head_runs + bwt_runs)) << endl;
+
+    cout << "-----------TUNNELS------------" << endl;
+    cout << "      half-tunnels: " << half_tunnels << endl;
+    cout << "     half-tunnel %: " << (double(half_tunnels) / col_len.size())*100 << endl;
+    cout << "   avg 1/2 tunnels: " << (double(half_avg) / col_len.size()) << endl;
+    cout << "   avg 1/4 tunnels: " << (double(quarter_avg) / col_len.size()) << endl;
+    cout << " avg consecutive %: " << (double(avg_consecutive_percent) / col_len.size())*100 << endl;
+    cout << " max consecutive %: " << max_consecutive_percent*100 << endl;
+    
+    // cout << "            # MUMs: " << col_len.size() << endl;
+    // cout << " Runs added (MUMs): " << count_grouped << endl;
+    // cout << "Runs added (other): " << others_added << endl;
+    // cout << "  Runs added (BWT): " << extra_runs + others_added << endl;
+    // cout << "Runs added (other): " << others_added << endl;
+    // cout << "      Colored runs: "  << (extra_runs + bwt_covered + others_added) << endl;
+    // cout << " % bwt run colored: " << (double(extra_runs + bwt_covered + others_added) / (tbl.runs() + extra_runs + others_added))*100 << endl;
+    // cout << "    Possible added: " << colored_rows << endl;
+    // cout << "        Total rows: " << (tbl.runs() + count_grouped + others_added) << endl;
+    // cout << "       Rows before: " << tbl.runs() << endl;
+    // cout << "    % runs colored: " << (double(count_grouped) / (tbl.runs() + count_grouped + others_added))*100 << endl;
+    // cout << "   % chars colored: " << (double(colored_chars) / (tbl.size()))*100 << endl;
+    // cout << "avg colored height: " << (double(total_len) / count_grouped) << endl;
+    // cout << "     avg MUM width: " << (double(total_width) / col_len.size()) << endl;
+    // cout << "    avg color docs: " << (double(total_docs) / count_grouped) << endl;
+    // cout << "avg color docs (r): " << (double(total_docs) / (extra_runs + bwt_covered)) << endl;
+    // cout << "    majority doc %: " << (double(max_doc_percentage_sum) / count_grouped) << endl;
 
     // return run_bv;
 }
