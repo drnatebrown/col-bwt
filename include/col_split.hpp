@@ -119,36 +119,6 @@ public:
         }
         status();
 
-        // NAIVE O(n) implementation
-        // status("Creatings IDs vector");
-        // #ifdef PRINT_STATS
-        // size_t col_chars = 0;
-        // size_t num_col_runs = 0;
-        // bool run = false;
-        // #endif
-        // for (size_t i = 0; i < tbl.size(); ++i) {
-        //     if (col_run_bv[i] == 1) {
-        //         col_run_ids.push_back((col_ids[i] > 1) ? col_ids[i] - 1 : 0);
-        //     }
-
-        //     #ifdef PRINT_STATS
-        //     if (col_run_bv[i]) {
-        //         if (col_ids[i] > 1) {
-        //             run = true;
-        //             ++num_col_runs;
-        //         }
-        //         else {
-        //             run = false;
-        //         }
-        //     }
-
-        //     if (run) {
-        //         ++col_chars;
-        //     }
-        //     #endif
-        // }
-        // status();
-
         status("Creating runs bitvector");
         col_runs = sd_vector(col_run_bv.get_bv());
         sd_select col_select = sd_select(&col_runs);
