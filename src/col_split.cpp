@@ -270,181 +270,221 @@ void split(FL_table tbl, r_index<> ridx, vector<ulint> col_len, vector<ulint> co
 
     cout << "Finished FL stepping\n";
 
+    // bv_t col_run_bv(tbl.size());
+    // bv_t non_run_bv(tbl.size());
+
+    // ulint curr_r_len = 0;
+    // ulint colored_runs = 0;
+    // ulint tail_runs = 0;
+    // ulint old_runs = 0;
+
+    // ulint curr_r_len_non = 0;
+    // ulint colored_runs_non = 0;
+    // ulint tail_runs_non = 0;
+    // ulint old_runs_non = 0;
+
+    // ulint curr_r_len_tnl = 0;
+    // ulint colored_runs_tnl = 0;
+    // ulint tail_runs_tnl = 0;
+    // ulint old_runs_tnl = 0;
+
+    // ulint colored_chars_non = 0;
+    // ulint colored_chars_tnl = 0;
+    // bool last = false;
+    // bool last_non = false;
+    // bool last_tnl = false;
+    // ulint last_id = 0;
+    // for (size_t i = 0; i < tbl.size(); ++i) {
+    //     colored_chars_non += covered_non_bv[i];
+    //     // covered_tunnel_bv[i] = covered_tunnel_bv[i] && covered_non_bv[i];
+    //     colored_chars_tnl += covered_tunnel_bv[i];
+
+    //     if (covered_bv[i]) {
+    //         // New Run
+    //         if (!last || col_ids[i] != last_id) {
+    //             // Corresponds to start of BWT run
+    //             curr_r_len = 0;
+    //             ++colored_runs;
+    //             if (run_bv[i]) ++old_runs;
+    //         }
+    //         else {
+    //             // New BWT Run
+    //             if (run_bv[i]) {
+    //                 curr_r_len = 0;
+    //                 ++colored_runs;
+    //                 ++old_runs;
+    //             }
+    //         }
+    //         ++curr_r_len;
+    //     }
+    //     // End of COL run
+    //     else if (!covered_bv[i] && last) {
+    //         ++tail_runs;
+    //         if (run_bv[i]) ++old_runs;
+            
+    //         curr_r_len = 0;
+    //     }
+
+    //     if (covered_non_bv[i]) {
+    //         // New Run
+    //         if (!last_non || col_ids[i] != last_id) {
+    //             // Corresponds to start of BWT run
+    //             curr_r_len_non = 0;
+    //             ++colored_runs_non;
+    //             if (run_bv[i]) ++old_runs_non;
+    //         }
+    //         else {
+    //             // New BWT Run
+    //             if (run_bv[i]) {
+    //                 curr_r_len_non = 0;
+    //                 ++colored_runs_non;
+    //                 ++old_runs_non;
+    //             }
+    //         }
+    //         ++curr_r_len_non;
+    //     }
+    //     // End of COL run
+    //     else if (!covered_non_bv[i] && last_non) {
+    //         ++tail_runs_non;
+    //         if (run_bv[i]) ++old_runs_non;
+            
+    //         curr_r_len_non = 0;
+    //     }
+
+    //     if (covered_tunnel_bv[i]) {
+    //         // New Run
+    //         if (!last_tnl || col_ids[i] != last_id) {
+    //         // if (!last_tnl) {
+    //             // Corresponds to start of BWT run
+    //             curr_r_len_tnl = 0;
+    //             ++colored_runs_tnl;
+    //             if (run_bv[i]) ++old_runs_tnl;
+    //         }
+    //         else {
+    //             // New BWT Run
+    //             if (run_bv[i]) {
+    //                 curr_r_len_tnl = 0;
+    //                 ++colored_runs_tnl;
+    //                 ++old_runs_tnl;
+    //             }
+    //         }
+    //         ++curr_r_len_tnl;
+    //     }
+    //     // End of COL run
+    //     else if (!covered_tunnel_bv[i] && last_tnl) {
+    //         ++tail_runs_tnl;
+    //         if (run_bv[i]) ++old_runs_tnl;
+            
+    //         curr_r_len_tnl = 0;
+    //     }
+
+    //     last = covered_bv[i];
+    //     last_non = covered_non_bv[i];
+    //     last_tnl = covered_tunnel_bv[i];
+    //     last_id = col_ids[i];
+    // }
+
+    // cout << "-----------GENERAL------------" << endl;
+    // cout << "            # MUMs: " << col_len.size() << endl;
+    // cout << "     avg MUM width: " << (double(total_width) / col_len.size()) << endl;
+    // cout << "                 n: " << tbl.size() << endl;
+    // cout << "                 r: " << tbl.runs() << endl;
+    // cout << "               n/r: " << double(tbl.size())/tbl.runs() << endl;
+    // cout << "                 N: " << N << endl;
+
+    // ulint total_runs = (colored_runs + tail_runs) - old_runs + tbl.runs();
+    // cout << "-----------MUM RUNS-----------" << endl;
+    // cout << "        # MUM-runs: " << colored_runs << endl;
+    // cout << "  # Intersect-runs: " << old_runs << endl;
+    // cout << "       # tail-runs: " << tail_runs << endl;
+    // cout << "    total BWT-runs: " << total_runs << endl;
+    // cout << "      % r increase: " << double(total_runs)/tbl.runs() << endl;
+    // cout << "        % MUM-runs: " << (double(colored_runs)/total_runs)*100 << endl;
+    // cout << "avg MUM-run height: " << (double(colored_chars) / (colored_runs)) << endl;
+    // cout << "     chars colored: " << colored_chars << endl;
+    // cout << "   % chars colored: " << (double(colored_chars) / (tbl.size()))*100 << endl;
+    // cout << "               n/r: " << double(tbl.size())/total_runs << endl;
+
+    // total_runs = (colored_runs_non + tail_runs_non) - old_runs_non + tbl.runs();
+    // cout << "-----------NON RUNS-----------" << endl;
+    // cout << "        # NON-runs: " << colored_runs_non << endl;
+    // cout << "  # Intersect-runs: " << old_runs_non << endl;
+    // cout << "       # tail-runs: " << tail_runs_non << endl;
+    // cout << "    total BWT-runs: " << total_runs << endl;
+    // cout << "      % r increase: " << double(total_runs)/tbl.runs() << endl;
+    // cout << "        % NON-runs: " << (double(colored_runs_non)/total_runs)*100 << endl;
+    // cout << "avg NON-run height: " << (double(colored_chars_non) / (colored_runs_non)) << endl;
+    // cout << "     chars colored: " << colored_chars_non << endl;
+    // cout << "   % chars colored: " << (double(colored_chars_non) / (tbl.size()))*100 << endl;
+    // cout << "               n/r: " << double(tbl.size())/total_runs << endl;
+
+    // cout << "-----------TUNNELS------------" << endl;
+    // cout << "      half-tunnels: " << half_tunnels << endl;
+    // cout << "     half-tunnel %: " << (double(half_tunnels) / col_len.size())*100 << endl;
+    // cout << "   avg 1/2 tunnels: " << (double(half_avg) / col_len.size()) << endl;
+    // cout << "   avg 1/4 tunnels: " << (double(quarter_avg) / col_len.size()) << endl;
+    // cout << " avg consecutive %: " << (double(avg_consecutive_percent) / col_len.size())*100 << endl;
+    // cout << " max consecutive %: " << max_consecutive_percent*100 << endl;
+
+    // cout << "------------RUNNY-------------" << endl;
+    // cout << "        # RUN-runs: " << runny_num << endl;
+    // cout << "        % RUN-runs: " << (double(runny_num)/tbl.runs())*100 << endl;
+    // cout << "avg RUN-run height: " << (double(runny_cov) / (runny_num)) << endl;
+    // cout << "     chars colored: " << runny_cov << endl;
+    // cout << "   % chars colored: " << (double(runny_cov) / (tbl.size()))*100 << endl;
+
+    // total_runs = (colored_runs_tnl + tail_runs_tnl) - old_runs_tnl + tbl.runs();
+    // cout << "-----------TUN RUNS-----------" << endl;
+    // cout << "        # TUN-runs: " << colored_runs_tnl << endl;
+    // cout << "  # Intersect-runs: " << old_runs_tnl << endl;
+    // cout << "       # tail-runs: " << tail_runs_tnl << endl;
+    // cout << "    total BWT-runs: " << total_runs << endl;
+    // cout << "      % r increase: " << double(total_runs)/tbl.runs() << endl;
+    // cout << "        % TUN-runs: " << (double(colored_runs_tnl)/total_runs)*100 << endl;
+    // cout << "avg TUN-run height: " << (double(colored_chars_tnl) / (colored_runs_tnl)) << endl;
+    // cout << "     chars colored: " << colored_chars_tnl << endl;
+    // cout << "   % chars colored: " << (double(colored_chars_tnl) / (tbl.size()))*100 << endl;
+    // cout << "               n/r: " << double(tbl.size())/total_runs << endl;
     bv_t col_run_bv(tbl.size());
-    bv_t non_run_bv(tbl.size());
-
-    ulint curr_r_len = 0;
-    ulint colored_runs = 0;
-    ulint tail_runs = 0;
-    ulint old_runs = 0;
-
-    ulint curr_r_len_non = 0;
-    ulint colored_runs_non = 0;
-    ulint tail_runs_non = 0;
-    ulint old_runs_non = 0;
-
-    ulint curr_r_len_tnl = 0;
-    ulint colored_runs_tnl = 0;
-    ulint tail_runs_tnl = 0;
-    ulint old_runs_tnl = 0;
-
-    ulint colored_chars_non = 0;
-    ulint colored_chars_tnl = 0;
     bool last = false;
-    bool last_non = false;
-    bool last_tnl = false;
     ulint last_id = 0;
     for (size_t i = 0; i < tbl.size(); ++i) {
-        colored_chars_non += covered_non_bv[i];
-        // covered_tunnel_bv[i] = covered_tunnel_bv[i] && covered_non_bv[i];
-        colored_chars_tnl += covered_tunnel_bv[i];
-
-        if (covered_bv[i]) {
-            // New Run
-            if (!last || col_ids[i] != last_id) {
-                // Corresponds to start of BWT run
-                curr_r_len = 0;
-                ++colored_runs;
-                if (run_bv[i]) ++old_runs;
-            }
-            else {
-                // New BWT Run
-                if (run_bv[i]) {
-                    curr_r_len = 0;
-                    ++colored_runs;
-                    ++old_runs;
-                }
-            }
-            ++curr_r_len;
-        }
-        // End of COL run
-        else if (!covered_bv[i] && last) {
-            ++tail_runs;
-            if (run_bv[i]) ++old_runs;
-            
-            curr_r_len = 0;
-        }
-
         if (covered_non_bv[i]) {
-            // New Run
-            if (!last_non || col_ids[i] != last_id) {
-                // Corresponds to start of BWT run
-                curr_r_len_non = 0;
-                ++colored_runs_non;
-                if (run_bv[i]) ++old_runs_non;
+            if (!last) {
+                col_run_bv[i] = 1;
             }
-            else {
-                // New BWT Run
-                if (run_bv[i]) {
-                    curr_r_len_non = 0;
-                    ++colored_runs_non;
-                    ++old_runs_non;
-                }
+            if (col_ids[i] != last_id) {
+                col_run_bv[i] = 1;
             }
-            ++curr_r_len_non;
         }
-        // End of COL run
-        else if (!covered_non_bv[i] && last_non) {
-            ++tail_runs_non;
-            if (run_bv[i]) ++old_runs_non;
-            
-            curr_r_len_non = 0;
+        else if (!covered_non_bv[i] && last) {
+            col_run_bv[i] = 1;
         }
-
-        if (covered_tunnel_bv[i]) {
-            // New Run
-            if (!last_tnl || col_ids[i] != last_id) {
-            // if (!last_tnl) {
-                // Corresponds to start of BWT run
-                curr_r_len_tnl = 0;
-                ++colored_runs_tnl;
-                if (run_bv[i]) ++old_runs_tnl;
-            }
-            else {
-                // New BWT Run
-                if (run_bv[i]) {
-                    curr_r_len_tnl = 0;
-                    ++colored_runs_tnl;
-                    ++old_runs_tnl;
-                }
-            }
-            ++curr_r_len_tnl;
-        }
-        // End of COL run
-        else if (!covered_tunnel_bv[i] && last_tnl) {
-            ++tail_runs_tnl;
-            if (run_bv[i]) ++old_runs_tnl;
-            
-            curr_r_len_tnl = 0;
-        }
-
-        last = covered_bv[i];
-        last_non = covered_non_bv[i];
-        last_tnl = covered_tunnel_bv[i];
-        last_id = col_ids[i];
+        last_id= col_ids[i];
+        last = covered_non_bv[i];
     }
 
-    cout << "-----------GENERAL------------" << endl;
-    cout << "            # MUMs: " << col_len.size() << endl;
-    cout << "     avg MUM width: " << (double(total_width) / col_len.size()) << endl;
-    cout << "                 n: " << tbl.size() << endl;
-    cout << "                 r: " << tbl.runs() << endl;
-    cout << "               n/r: " << double(tbl.size())/tbl.runs() << endl;
-    cout << "                 N: " << N << endl;
+    size_t col_chars = 0;
+    size_t num_col_runs = 0;
+    bool run = false;
+    for (size_t i = 0; i < tbl.size(); ++i) {
+        if (col_run_bv[i]) {
+            if (col_ids[i] > 1) {
+                run = true;
+                ++num_col_runs;
+            }
+            else {
+                run = false;
+            }
+        }
 
-    ulint total_runs = (colored_runs + tail_runs) - old_runs + tbl.runs();
-    cout << "-----------MUM RUNS-----------" << endl;
-    cout << "        # MUM-runs: " << colored_runs << endl;
-    cout << "  # Intersect-runs: " << old_runs << endl;
-    cout << "       # tail-runs: " << tail_runs << endl;
-    cout << "    total BWT-runs: " << total_runs << endl;
-    cout << "      % r increase: " << double(total_runs)/tbl.runs() << endl;
-    cout << "        % MUM-runs: " << (double(colored_runs)/total_runs)*100 << endl;
-    cout << "avg MUM-run height: " << (double(colored_chars) / (colored_runs)) << endl;
-    cout << "     chars colored: " << colored_chars << endl;
-    cout << "   % chars colored: " << (double(colored_chars) / (tbl.size()))*100 << endl;
-    cout << "               n/r: " << double(tbl.size())/total_runs << endl;
+        if (run) {
+            ++col_chars;
+        }
+    }
 
-    total_runs = (colored_runs_non + tail_runs_non) - old_runs_non + tbl.runs();
-    cout << "-----------NON RUNS-----------" << endl;
-    cout << "        # NON-runs: " << colored_runs_non << endl;
-    cout << "  # Intersect-runs: " << old_runs_non << endl;
-    cout << "       # tail-runs: " << tail_runs_non << endl;
-    cout << "    total BWT-runs: " << total_runs << endl;
-    cout << "      % r increase: " << double(total_runs)/tbl.runs() << endl;
-    cout << "        % NON-runs: " << (double(colored_runs_non)/total_runs)*100 << endl;
-    cout << "avg NON-run height: " << (double(colored_chars_non) / (colored_runs_non)) << endl;
-    cout << "     chars colored: " << colored_chars_non << endl;
-    cout << "   % chars colored: " << (double(colored_chars_non) / (tbl.size()))*100 << endl;
-    cout << "               n/r: " << double(tbl.size())/total_runs << endl;
-
-    cout << "-----------TUNNELS------------" << endl;
-    cout << "      half-tunnels: " << half_tunnels << endl;
-    cout << "     half-tunnel %: " << (double(half_tunnels) / col_len.size())*100 << endl;
-    cout << "   avg 1/2 tunnels: " << (double(half_avg) / col_len.size()) << endl;
-    cout << "   avg 1/4 tunnels: " << (double(quarter_avg) / col_len.size()) << endl;
-    cout << " avg consecutive %: " << (double(avg_consecutive_percent) / col_len.size())*100 << endl;
-    cout << " max consecutive %: " << max_consecutive_percent*100 << endl;
-
-    cout << "------------RUNNY-------------" << endl;
-    cout << "        # RUN-runs: " << runny_num << endl;
-    cout << "        % RUN-runs: " << (double(runny_num)/tbl.runs())*100 << endl;
-    cout << "avg RUN-run height: " << (double(runny_cov) / (runny_num)) << endl;
-    cout << "     chars colored: " << runny_cov << endl;
-    cout << "   % chars colored: " << (double(runny_cov) / (tbl.size()))*100 << endl;
-
-    total_runs = (colored_runs_tnl + tail_runs_tnl) - old_runs_tnl + tbl.runs();
-    cout << "-----------TUN RUNS-----------" << endl;
-    cout << "        # TUN-runs: " << colored_runs_tnl << endl;
-    cout << "  # Intersect-runs: " << old_runs_tnl << endl;
-    cout << "       # tail-runs: " << tail_runs_tnl << endl;
-    cout << "    total BWT-runs: " << total_runs << endl;
-    cout << "      % r increase: " << double(total_runs)/tbl.runs() << endl;
-    cout << "        % TUN-runs: " << (double(colored_runs_tnl)/total_runs)*100 << endl;
-    cout << "avg TUN-run height: " << (double(colored_chars_tnl) / (colored_runs_tnl)) << endl;
-    cout << "     chars colored: " << colored_chars_tnl << endl;
-    cout << "   % chars colored: " << (double(colored_chars_tnl) / (tbl.size()))*100 << endl;
-    cout << "               n/r: " << double(tbl.size())/total_runs << endl;
+    cout << " Col runs: " << num_col_runs << std::endl;
+    cout << "Col chars: " << col_chars << std::endl;
 }
 
 int main(int argc, char *const argv[])
