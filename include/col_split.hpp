@@ -31,11 +31,12 @@ public:
     void split(vector<ulint> col_len, vector<ulint> col_pos, ulint N, Mode m = Mode::Default, int split_rate = 1) {
         assert(col_len.size() == col_pos.size());
 
+        status("Initializing vectors");
         bit_vector col_run_bv(tbl.size());
         vector<ulint> col_ids(tbl.size(), 0);
+        status();
 
-        cerr << "Finished initializing vectors\n";
-
+        status("FL Stepping");
         size_t run_start = 0;
         size_t c_id = 2;
         vector<ulint>::iterator c_pos = col_pos.begin();
@@ -65,7 +66,7 @@ public:
                                 col_ids[l] = c_id;
                             }
 
-                            if (j % split_rate == 0 && last_id != col_ids[l]) {
+                            if (j % split_rate == 0 && col_ids[l] > 1 && last_id != col_ids[l]) {
                                 switch (m) {
                                 case Mode::Tunneled:
                                     if (FL_ranges.size() == 1) {
@@ -103,9 +104,9 @@ public:
             }
             run_start += run_len;
         }
+        status();
 
-        cerr << "Finished FL stepping\n";
-
+        status("Creatings IDs vector");
         #ifdef PRINT_STATS
         size_t col_chars = 0;
         size_t num_col_runs = 0;
@@ -132,12 +133,11 @@ public:
             }
             #endif
         }
+        status();
 
-        cerr << "Finished finding IDs for runs\n";
-
+        status("Creating runs bitvector");
         col_runs = sd_vector(col_run_bv);
-
-        cerr << "Finished creating runs bitvector\n";
+        status();
 
         #ifdef PRINT_STATS
         cout << " Col runs: " << num_col_runs << std::endl;
