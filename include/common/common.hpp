@@ -45,6 +45,22 @@ static const uint8_t TERMINATOR = 1;
 typedef unsigned long int ulint;
 typedef unsigned char uchar;
 
+inline void error(const std::string& msg) {
+    std::cerr << "[ERROR]: " << msg << std::endl;
+}
+
+inline void log(const std::string& msg) {
+    std::cout << "[INFO]: " << msg << std::endl;
+}
+
+inline void status(const std::string& msg) {
+    std::cout << "[STATUS]: " << msg << "...";
+}
+
+inline void status() {
+    std::cout << " DONE" << std::endl;
+}
+
 //*********************** Argument options ***************************************
 // struct containing command line parameters and other globals
 struct Args
