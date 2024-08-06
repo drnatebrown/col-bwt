@@ -60,16 +60,6 @@ public :
         build_F_(ifs_heads, ifs_len);
   }
 
-  ulint get_run(ulint i)
-  {
-      return bwt.run_of_position(i);
-  }
-
-  ulint run_len(ulint k)
-  {
-      return bwt.run_at(k);
-  }
-
   /*
   * \param i position in the BWT
   * \param c character
@@ -115,12 +105,17 @@ public :
     }
 
     //forward navigation of the BWT, where for efficiency we give c=F[i] as input
-    uint64_t FL(uint64_t  i, uint8_t c) {
-        //i-th character in first BWT column
-        assert(c == f_at(i));
-        //this c is the j-th (counting from 0)
-        uint64_t j = i - F[c];
-        return bwt.select(j,uint8_t(c));
+    // uint64_t FL(uint64_t  i, uint8_t c) {
+    //     //i-th character in first BWT column
+    //     assert(c == f_at(i));
+    //     //this c is the j-th (counting from 0)
+    //     uint64_t j = i - F[c];
+    //     return bwt.select(j,uint8_t(c));
+    // }
+
+    //forward navigation of the BWT using interval/offset representation
+    uint64_t FL(uint64_t k, uint64_t d) {
+        return FL(run_start(k) + d);
     }
 
   /* serialize the structure to the ostream
@@ -162,12 +157,23 @@ public :
       return bwt.number_of_runs();
   }
 
-  size_t f_char(size_t i){
-    return f_at(i);
-  }
-
   size_t run_start(size_t j) {
     return bwt.run_range(j).first;
+  }
+
+  ulint get_run(ulint i)
+  {
+      return bwt.run_of_position(i);
+  }
+
+  ulint get_length(ulint k)
+  {
+      return bwt.run_at(k);
+  }
+
+  uchar get_char(size_t i)
+  {
+    return f_at(i);
   }
 
 protected:

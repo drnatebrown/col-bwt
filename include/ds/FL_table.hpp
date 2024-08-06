@@ -27,6 +27,7 @@
 #include <common.hpp>
 #include <sdsl/structure_tree.hpp>
 #include <sdsl/util.hpp>
+#include <sdsl/sd_vector.hpp>
 #include <climits>
 
 using namespace std;
@@ -34,69 +35,6 @@ using namespace std;
 class FL_table
 {
 public:
-    // // Row of the FL table
-    // typedef struct FL_row
-    // {
-    //     char character;
-    //     ulint length : BWT_BITS;
-    //     ulint interval : BWT_BITS;
-    //     ulint offset : BWT_BITS;
-    //     ulint L_pos : BWT_BITS;
-    //     ulint L_idx : BWT_BITS;
-
-    //     size_t serialize(std::ostream &out, sdsl::structure_tree_node *v = nullptr, std::string name ="")
-    //     {
-    //         sdsl::structure_tree_node *child = sdsl::structure_tree::add_child(v, name, sdsl::util::class_name(*this));
-    //         size_t written_bytes = 0;
-
-    //         out.write((char *)&character, sizeof(character));
-    //         written_bytes += sizeof(character);
-
-    //         size_t temp = interval;
-    //         out.write((char *)&temp, BWT_BYTES);
-    //         written_bytes += BWT_BYTES;
-
-    //         temp = length;
-    //         out.write((char *)&temp, BWT_BYTES);
-    //         written_bytes += BWT_BYTES;
-
-    //         temp = offset;
-    //         out.write((char *)&temp, BWT_BYTES);
-    //         written_bytes += BWT_BYTES;
-
-    //         temp = L_pos;
-    //         out.write((char *)&temp, BWT_BYTES);
-    //         written_bytes += BWT_BYTES;
-
-    //         temp = L_idx;
-    //         out.write((char *)&temp, BWT_BYTES);
-    //         written_bytes += BWT_BYTES;
-
-    //         return written_bytes;
-    //     }
-
-    //     void load(std::istream &in)
-    //     {
-    //         in.read((char *)&character, sizeof(character));
-
-    //         size_t temp;
-    //         in.read((char *)&temp, BWT_BYTES);
-    //         interval = temp;
-
-    //         in.read((char *)&temp, BWT_BYTES);
-    //         length = temp;
-
-    //         in.read((char *)&temp, BWT_BYTES);
-    //         offset = temp;
-
-    //         in.read((char *)&temp, BWT_BYTES);
-    //         L_pos = temp;
-
-    //         in.read((char *)&temp, BWT_BYTES);
-    //         L_idx = temp;
-    //     }
-    // };
-
     // Row of the FL table
     typedef struct FL_row
     {
@@ -295,6 +233,11 @@ public:
         return ((i == r - 1) ? n : FL_runs[i + 1].idx) - FL_runs[i].idx;
     }
 
+    ulint get_idx(ulint i)
+    {
+        return FL_runs[i].idx;
+    }
+
     std::string get_file_extension() const
     {
         return ".FL_table";
@@ -365,44 +308,6 @@ private:
     ulint r; // Runs of BWT
 
     vector<FL_row> FL_runs;
-
-    // void compute_table(vector<char> L_chars, vector<ulint> L_lens, vector<vector<ulint>> L_block_indices, vector<vector<ulint>> char_runs) {
-    //     FL_runs = vector<FL_row>(r);
-    //     size_t i = 0;
-    //     for (size_t c = 0; c < ALPHABET_SIZE; ++c)
-    //     {
-    //         for (size_t j = 0; j < char_runs[c].size(); ++j) {
-    //             size_t length = char_runs[c][j];
-    //             FL_runs[i].character = (unsigned char) c;
-    //             FL_runs[i].length = length;
-    //             ++i;
-    //         }
-    //     }
-
-    //     ulint k = 0; // current row to be filled
-    //     for(size_t i = 0; i < L_block_indices.size(); ++i) 
-    //     {
-    //         ulint F_curr = 0; // current position when scanning F
-    //         ulint F_seen = 0; // characters seen before position in F
-    //         ulint L_curr = 0; // current position when scanning L
-    //         ulint L_seen = 0; // characters seen before position in L
-    //         for(size_t j = 0; j < L_block_indices[i].size(); ++j) 
-    //         {
-    //             while (L_curr < L_block_indices[i][j]) {
-    //                 L_seen += L_lens[L_curr++];
-    //             }
-    //             while (F_seen + FL_runs[F_curr].length <= L_seen) {
-    //                 F_seen += FL_runs[F_curr++].length;
-    //             }
-
-    //             FL_runs[k].interval = F_curr;
-    //             FL_runs[k].offset = L_seen - F_seen;
-    //             FL_runs[k].L_pos = L_curr;
-    //             FL_runs[k].L_idx = L_seen;
-    //             ++k;
-    //         }
-    //     }
-    // }
 
     void compute_table(vector<char> L_chars, vector<ulint> L_lens, vector<vector<ulint>> L_block_indices, vector<vector<ulint>> char_runs) {
         FL_runs = vector<FL_row>(r);
