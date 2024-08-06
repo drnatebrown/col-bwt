@@ -54,7 +54,7 @@ inline void log(const std::string& msg) {
 }
 
 inline void status(const std::string& msg) {
-    std::cout << "[STATUS]: " << msg << "...";
+    std::cout << "[STATUS]: " << msg << "..." << std::flush;
 }
 
 inline void status() {

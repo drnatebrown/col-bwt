@@ -94,17 +94,14 @@ int main(int argc, char *const argv[])
     std::cout << "Splitting Complete" << std::endl;
     std::cout << "Elapsed time (s): " << std::chrono::duration<double, std::ratio<1>>(t_insert_end - t_insert_mid).count() << std::endl;
 
-    std::cout << "Splitting Complete" << std::endl;
+    std::cout << "Serializing COL runs bitvector and IDs" << std::endl;
+    t_insert_mid = std::chrono::high_resolution_clock::now();
+
+    split_ds.save(args.filename);
+
+    t_insert_end = std::chrono::high_resolution_clock::now();
+    std::cout << "Serializing Complete" << std::endl;
     std::cout << "Elapsed time (s): " << std::chrono::duration<double, std::ratio<1>>(t_insert_end - t_insert_mid).count() << std::endl;
-
-    // std::cout << "Serializing COL runs bitvector and IDs" << std::endl;
-    // t_insert_mid = std::chrono::high_resolution_clock::now();
-
-    // split_ds.save(args.filename);
-
-    // t_insert_end = std::chrono::high_resolution_clock::now();
-    // std::cout << "Serializing Complete" << std::endl;
-    // std::cout << "Elapsed time (s): " << std::chrono::duration<double, std::ratio<1>>(t_insert_end - t_insert_mid).count() << std::endl;
 
     std::cout << "Done" << std::endl;
     std::cout << "Memory peak: " << malloc_count_peak() << std::endl;
