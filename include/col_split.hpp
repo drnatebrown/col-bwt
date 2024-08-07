@@ -14,8 +14,6 @@
 #ifndef _COL_SPLIT_TABLE_HH
 #define _COL_SPLIT_TABLE_HH
 
-#define PRINT_STATS 1
-
 template <class FL_t = FL_table>
 class col_split {
 public:
@@ -154,7 +152,7 @@ public:
         status();
 
         #ifdef PRINT_STATS
-        cout << " Col runs: " << num_col_runs << std::endl;
+        cout << "Col runs: " << num_col_runs << std::endl;
         cout << "Col chars: " << col_chars << std::endl;
         #endif
     }
@@ -171,7 +169,7 @@ public:
     // }
 
     /* Space saving option to mod the values before saving */
-    void save_mod(string filename, int id_bits=ID_BITS) {
+    void save(string filename, int id_bits=ID_BITS) {
         assert (id_bits <= sizeof(ulint) * 8);
         ulint id_max = 1 << id_bits;
         ulint id_bytes = (id_bits + 7) / 8; // bytes needed to store id

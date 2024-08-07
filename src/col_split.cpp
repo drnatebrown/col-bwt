@@ -33,39 +33,37 @@
 
 int main(int argc, char *const argv[])
 {
+    Timer timer;
     Args args;
     parseArgs(argc, argv, args);
 
     if (!args.N) {
-        std::cout << "ERROR: Invalid number of arguments\n";
+        error("Invalid number of COL positions");
         return 1;
     }
 
-    std::cout << "Loading move structure supporting FL mapping: " << std::endl;
-    std::chrono::high_resolution_clock::time_point t_insert_start = std::chrono::high_resolution_clock::now();
+    message("Loading BWT table supporting FL mapping: ");
+    timer.start();
 
     FL_table tbl;
-
     std::string filename_tbl = args.filename + tbl.get_file_extension();
     ifstream fs_tbl(filename_tbl);
-
     tbl.load(fs_tbl);
 
-    std::chrono::high_resolution_clock::time_point t_insert_end = std::chrono::high_resolution_clock::now();
-
-    std::cout << "Load Complete" << std::endl;
-    std::cout << "Elapsed time (s): " << std::chrono::duration<double, std::ratio<1>>(t_insert_end - t_insert_start).count() << std::endl;
+    timer.end();
+    submessage("Load Complete");
+    timer.startTime();
 
     tbl.bwt_stats();
 
-    std::chrono::high_resolution_clock::time_point t_insert_mid = std::chrono::high_resolution_clock::now();
-    std::cout << "Loading COL Positions" << std::endl;
+    timer.mid();
+    message("Loading COL Positions: ");
 
     std::string filename_mums = args.filename + ".mums";
     std::ifstream mum_file(filename_mums, std::ios::binary | std::ios::ate);
     size_t num_mums = mum_file.tellg()/(RW_BYTES*4);
 
-    std::cout << "There are " << num_mums << " COL positions" << std::endl;
+    log("# of COL positions: ", num_mums);
     mum_file.seekg(0, std::ios::beg);
 
     std::vector<ulint> match_lens(num_mums);
@@ -80,32 +78,33 @@ int main(int argc, char *const argv[])
         mum_file.read(discard, RW_BYTES);
         mum_file.read(discard, RW_BYTES);
     }
-    t_insert_end = std::chrono::high_resolution_clock::now();
-    std::cout << "Load Complete" << std::endl;
-    std::cout << "Elapsed time (s): " << std::chrono::duration<double, std::ratio<1>>(t_insert_end - t_insert_mid).count() << std::endl;
 
-    std::cout << "Splitting runs based on COL Positions using FL Table" << std::endl;
-    t_insert_mid = std::chrono::high_resolution_clock::now();
+    timer.end();
+    submessage("Load Complete");
+    timer.midTime();
+
+    message("Splitting runs based on COL Positions using FL Table");
+    timer.mid();
 
     col_split<> split_ds(tbl);
     split_ds.split(match_lens, match_pos, args.N);
 
-    t_insert_end = std::chrono::high_resolution_clock::now();
-    std::cout << "Splitting Complete" << std::endl;
-    std::cout << "Elapsed time (s): " << std::chrono::duration<double, std::ratio<1>>(t_insert_end - t_insert_mid).count() << std::endl;
+    timer.end();
+    submessage("Splitting Complete");
+    timer.midTime();
 
-    std::cout << "Serializing COL runs bitvector and IDs" << std::endl;
-    t_insert_mid = std::chrono::high_resolution_clock::now();
+    message("Serializing COL runs bitvector and IDs");
+    timer.mid();
 
     split_ds.save(args.filename);
 
-    t_insert_end = std::chrono::high_resolution_clock::now();
-    std::cout << "Serializing Complete" << std::endl;
-    std::cout << "Elapsed time (s): " << std::chrono::duration<double, std::ratio<1>>(t_insert_end - t_insert_mid).count() << std::endl;
+    timer.end();
+    submessage("Serialization Complete");
+    timer.midTime();
 
-    std::cout << "Done" << std::endl;
-    std::cout << "Memory peak: " << malloc_count_peak() << std::endl;
-    std::cout << "Total Elapsed time (s): " << std::chrono::duration<double, std::ratio<1>>(t_insert_end - t_insert_start).count() << std::endl;
+    message("Done", false);
+    mem_peak();
+    timer.startTime();
 
     return 0;
 }

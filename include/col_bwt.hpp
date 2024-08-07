@@ -1,3 +1,23 @@
+/* col_bwt - Uncompressed version of OptBWTR (LF table) with co-lin ids
+    Copyright (C) 2024 Nathaniel Brown
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see http://www.gnu.org/licenses/ .
+*/
+/*!
+   \file col_bwt.hpp
+   \brief Uncompressed version of OptBWTR (LF table) with co-lin ids
+   \author Nathaniel Brown
+   \date 07/08/2024
+*/
+
 #ifndef COL_BWT_HPP
 #define COL_BWT_HPP
 
@@ -142,8 +162,8 @@ public:
         status();
 
         #ifdef PRINT_STATS
-        cout << "Text runs: " << runs() << std::endl;
-        cout << "Text length: " << size() << std::endl;
+        stat("Text runs", runs());
+        stat("Text length", size());
         #endif
     }
 
@@ -170,6 +190,7 @@ public:
         }
         sd_select s_select(&splits);
         
+        status("Constructing Col BWT table");
         char last_c;
         char c;
         size_t length = 0;
@@ -214,12 +235,15 @@ public:
         n+=length;
 
         r = LF_runs.size();
+        status();
 
+        status("Computing values of Col BWT table");
         compute_table(L_block_indices);
+        status();
 
         #ifdef PRINT_STATS
-        cout << "Text runs: " << runs() << std::endl;
-        cout << "Text length: " << size() << std::endl;
+        stat("Text runs", runs());
+        stat("Text length", size());
         #endif
     }
 
@@ -235,21 +259,21 @@ public:
 
     void bwt_stats()
     {
-        cout << "Number of Col equal-letter runs: r = " <<  r << std::endl;
-        cout << "Number of BWT equal-letter runs: bwt_r = " <<  bwt_r << std::endl;
-        cout << "Length of complete BWT: n = " << n << std::endl;
-        cout << "Rate n/r = " << double(n) / r <<  r << std::endl;
-        cout << "log2(r) = " << log2(double(r)) <<  r << std::endl;
-        cout << "log2(n/r) = " << log2(double(n) / r) <<  r << std::endl;
+        log("Number of Col equal-letter runs: r = ", r);
+        log("Number of BWT equal-letter runs: r = ", bwt_r);
+        log("Length of complete BWT: n = ", n);
+        log("Rate n/r = ", double(n) / r);
+        log("log2(r) = ", log2(double(r)));
+        log("log2(n/r) = ", log2(double(n) / r));
     }
 
     void mem_stats()
     {
-        cout << "Memory consumption (bytes)." << std::endl;
-        cout << "   Col BWT: " << r + 4*r*BWT_BYTES + ID_BYTES << std::endl;
-        cout << "           Chars: " << r << std::endl;
-        cout << "            Ints: " << r*BWT_BYTES << std::endl;
-        cout << "             IDs: " << r*ID_BYTES << std::endl;
+        log("Memory (bytes):");
+        log("   Col BWT: ", r + 4*r*BWT_BYTES + ID_BYTES);
+        log("           Chars: ", r);
+        log("            Ints: ", r*BWT_BYTES);
+        log("             IDs: ", r*ID_BYTES);
     }
 
     /* serialize to the ostream

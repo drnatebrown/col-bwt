@@ -1,5 +1,5 @@
 /*  common
-    Copyright (C) 2020 Massimiliano Rossi
+    Copyright (C) 2024 Massimiliano Rossi
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
@@ -15,6 +15,7 @@
    \file common.hpp
    \brief common.hpp contains common features.
    \author Massimiliano Rossi
+   \author Nathaniel Brown
    \date 12/03/2020
 */
 
@@ -37,16 +38,19 @@
 #include <sdsl/int_vector.hpp>
 #include <sdsl/sd_vector.hpp>
 
+#include <malloc_count.h>
+
+/* CONFIGURABLE */
 #define ALPHABET_SIZE 256
 #define RW_BYTES 5
-
 #define BWT_BYTES 5
-#define BWT_BITS (BWT_BYTES * 8)
 #define ID_BITS 40
+#define PRINT_STATS 0
+
+#define BWT_BITS (BWT_BYTES * 8)
 #define ID_BYTES (ID_BITS + 7) / 8
 
-#define PRINT_STATS 1
-
+bool verbose = 1;
 
 static const uint8_t TERMINATOR = 1;
 typedef unsigned long int ulint;
@@ -55,63 +59,157 @@ typedef unsigned char uchar;
 typedef typename sdsl::sd_vector<>::select_1_type sd_select;
 typedef typename sdsl::sd_vector<>::rank_1_type sd_rank;
 
+//*********************** Message options ***************************************
+
+template <typename T>
+std::string to_str(const T& value) {
+    std::ostringstream oss;
+    oss << value;
+    return oss.str();
+}
+
+/* ALWAYS DISPLAYED */
+//**************************************************************
+bool sub = false;
+inline std::string indent() {
+    return (sub) ? "\t" : "";
+}
+
 inline void error(const std::string& msg) {
     std::cerr << "[ERROR]: " << msg << std::endl;
 }
 
-inline void log(const std::string& msg) {
+inline void message(const std::string& msg, bool header = true) {
+    sub = header;
     std::cout << "[INFO]: " << msg << std::endl;
 }
 
+inline void submessage(const std::string& msg) {
+    sub = true;
+    std::cout << indent() << "[INFO]: " << msg << std::endl;
+}
+
+inline void mem_peak() {
+    std::cout << indent() << "[INFO]: Memory peak: " << malloc_count_peak() << std::endl;
+}
+
+#ifdef PRINT_STATS
+template <typename T>
+void stat(const std::string& label, const T& value) {
+    std::cout << label << ": " << to_str(value) << std::endl;
+}
+#endif
+
+/* VERBOSE ONLY */
+//**************************************************************
+template <typename T>
+inline void log(const std::string& msg, const T& value) {
+    if (verbose) {
+        std::cout << indent() << "[LOG]: " << msg << to_str(value) << std::endl;
+    }
+}
+
+
+inline void log(const std::string& msg) {
+    if (verbose) {
+        std::cout << indent() << "[LOG]: " << msg << std::endl;
+    }
+}
+
 inline void status(const std::string& msg) {
-    std::cout << "[STATUS]: " << msg << "..." << std::flush;
+    if (verbose) {
+        std::cout << indent() << "[STATUS]: " << msg << "..." << std::flush;
+    }
 }
 
 inline void status() {
-    std::cout << " DONE" << std::endl;
+    if (verbose) {
+        std::cout << " DONE" << std::endl;
+    }
 }
+
+class Timer {
+public:
+    void start() {
+        t_start = std::chrono::high_resolution_clock::now();
+    }
+
+    void mid() {
+        t_mid = std::chrono::high_resolution_clock::now();
+    }
+
+    void end() {
+        t_end = std::chrono::high_resolution_clock::now();
+    }
+
+    // Method to print elapsed time from start to end
+    void startTime() const {
+        write_time(std::chrono::duration<double, std::ratio<1>>(t_end - t_start).count());
+    }
+
+    // Method to print elapsed time from mid to end
+    void midTime() const {
+        write_time(std::chrono::duration<double, std::ratio<1>>(t_end - t_mid).count());
+    }
+
+private:
+    std::chrono::high_resolution_clock::time_point t_start;
+    std::chrono::high_resolution_clock::time_point t_mid;
+    std::chrono::high_resolution_clock::time_point t_end;
+
+    void write_time(double duration) const {
+        if (sub) {
+              submessage("Elapsed time (s): " + to_str(duration));
+          }
+        else {
+            message("Elapsed time (s): " + to_str(duration));
+        }
+    }
+};
+
+//********** end message options ********************
 
 //*********************** Argument options ***************************************
 // struct containing command line parameters and other globals
 struct Args
 {
-  std::string filename = "";
-  bool rle   = true; // read in RLBWT
-  int N = 0; // size of collection
+    std::string filename = "";
+    bool rle   = true; // read in RLBWT
+    int N = 0; // size of collection
 };
 
 void parseArgs(int argc, char *const argv[], Args &arg)
 {
-  int c;
-  extern char *optarg;
-  extern int optind;
+    int c;
+    extern char *optarg;
+    extern int optind;
 
-  std::string sarg;
-  while ((c = getopt(argc, argv, "rd:N:")) != -1)
-  {
-    switch (c)
+    std::string sarg;
+    while ((c = getopt(argc, argv, "rd:N:")) != -1)
     {
-    case 'r':
-      arg.rle = true;
-      break;
-    case 'N':
-      sarg.assign(optarg);
-      arg.N = std::stoi(sarg);
-      break;
-    case '?':
-      std::cout << "ERROR: Unknown option.\n";
-      break;
+        switch (c)
+        {
+        case 'r':
+            arg.rle = true;
+            break;
+        case 'N':
+            sarg.assign(optarg);
+            arg.N = std::stoi(sarg);
+            break;
+        case '?':
+            std::cout << "ERROR: Unknown option.\n";
+            break;
+        }
     }
-  }
-  // the only input parameter is the file name
-  if (argc == optind + 1)
-  {
-    arg.filename.assign(argv[optind]);
-  }
-  else
-  {
-    std::cout << "ERROR: Invalid number of arguments\n";
-  }
+    // the only input parameter is the file name
+    if (argc == optind + 1)
+    {
+        arg.filename.assign(argv[optind]);
+    }
+    else
+    {
+        std::cout << "ERROR: Invalid number of arguments\n";
+    }
 }
 
 //********** end argument options ********************
@@ -120,21 +218,19 @@ void parseArgs(int argc, char *const argv[], Args &arg)
 template<class B>
 B bool_to_bit_vec(std::vector<bool> &b)
 {
-  if(b.size()==0) return B();
+    if(b.size()==0) return B();
 
-  sdsl::bit_vector bv(b.size());
+    sdsl::bit_vector bv(b.size());
 
-  for(size_t i = 0; i < b.size(); ++i)
-    bv[i] = b[i];
+    for(size_t i = 0; i < b.size(); ++i)
+        bv[i] = b[i];
 
-  return B(bv);
+    return B(bv);
 }
 
 uint8_t bitsize(uint64_t x){
-
-	if(x==0) return 1;
-	return 64 - __builtin_clzll(x);
-
+	  if(x==0) return 1;
+	  return 64 - __builtin_clzll(x);
 }
 
 #endif /* end of include guard: _COMMON_HH */

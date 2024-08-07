@@ -24,15 +24,15 @@
 #include <sdsl/io.hpp>
 #include <sdsl/int_vector.hpp>
 #include <sdsl/sd_vector.hpp>
-#include <malloc_count.h>
 
 int main(int argc, char *const argv[])
 {
+    Timer timer;
     Args args;
     parseArgs(argc, argv, args);
 
-    std::cout << "Building Col BWT supporting Co-lineary Statistics: " << std::endl;
-    std::chrono::high_resolution_clock::time_point t_insert_start = std::chrono::high_resolution_clock::now();
+    message("Building Col BWT supporting Co-lineary Statistics: ");
+    timer.start();
 
     std::string col_ids_fname = args.filename + ".col_ids";
     std::ifstream ifs_col_ids(col_ids_fname);
@@ -54,31 +54,30 @@ int main(int argc, char *const argv[])
     ifs_len.seekg(0);
     ifs_col_ids.seekg(0);
     col_bwt col_bwt(ifs_heads, ifs_len, ifs_col_ids, col_runs);
+    timer.end();
 
-    std::chrono::high_resolution_clock::time_point t_insert_end = std::chrono::high_resolution_clock::now();
-
-    std::cout << "Construction Complete" << std::endl;
-    std::cout << "Elapsed time (s): " << std::chrono::duration<double, std::ratio<1>>(t_insert_end - t_insert_start).count() << std::endl;
+    submessage("Construction Complete");
+    timer.startTime();
 
     col_bwt.bwt_stats();
     col_bwt.mem_stats();
 
-    std::cout << "Serializing" << std::endl;
-    std::chrono::high_resolution_clock::time_point t_insert_mid = std::chrono::high_resolution_clock::now();
+    message("Serializing");
+    timer.mid();
 
     std::string col_bwt_outfile = args.filename + col_bwt.get_file_extension();
     std::ofstream out_fp(col_bwt_outfile);
     col_bwt.serialize(out_fp);
     out_fp.close();
 
-    t_insert_end = std::chrono::high_resolution_clock::now();
+    timer.end();
 
-    std::cout << "Serializing Complete" << std::endl;
-    std::cout << "Elapsed time (s): " << std::chrono::duration<double, std::ratio<1>>(t_insert_end - t_insert_mid).count() << std::endl;
+    submessage("Serializing Complete");
+    timer.midTime();
 
-    std::cout << "Done" << std::endl;
-    std::cout << "Memory peak: " << malloc_count_peak() << std::endl;
-    std::cout << "Total Elapsed time (s): " << std::chrono::duration<double, std::ratio<1>>(t_insert_end - t_insert_start).count() << std::endl;
+    message("Done", false);
+    mem_peak();
+    timer.startTime();
 
     return 0;
 }

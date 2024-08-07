@@ -29,11 +29,12 @@
 
 int main(int argc, char *const argv[])
 {
+    Timer timer;
     Args args;
     parseArgs(argc, argv, args);
 
-    std::cout << "Building move structure supporting FL mapping: " << std::endl;
-    std::chrono::high_resolution_clock::time_point t_insert_start = std::chrono::high_resolution_clock::now();
+    message("Building move structure supporting FL mapping: ");
+    timer.start();
 
     std::string bwt_fname = args.filename + ".bwt";
 
@@ -45,38 +46,30 @@ int main(int argc, char *const argv[])
     ifs_heads.seekg(0);
     ifs_len.seekg(0);
     FL_table tbl(ifs_heads, ifs_len);
-    std::cout << "Building r-index supporting FL mapping: " << std::endl;
-    r_index ridx(args.filename);
 
-    std::chrono::high_resolution_clock::time_point t_insert_end = std::chrono::high_resolution_clock::now();
+    timer.end();
 
-    std::cout << "Construction Complete" << std::endl;
-    std::cout << "Elapsed time (s): " << std::chrono::duration<double, std::ratio<1>>(t_insert_end - t_insert_start).count() << std::endl;
+    submessage("Construction Complete");
+    timer.startTime();
 
     tbl.bwt_stats();
     tbl.mem_stats();
 
-    std::cout << "Serializing" << std::endl;
-    std::chrono::high_resolution_clock::time_point t_insert_mid = std::chrono::high_resolution_clock::now();
+    message("Serializing: ");
+    timer.mid();
 
     std::string tbl_outfile = args.filename + tbl.get_file_extension();
     std::ofstream out_fp(tbl_outfile);
     tbl.serialize(out_fp);
     out_fp.close();
 
-    std::string ri_outfile = args.filename + ridx.get_file_extension();
-    std::ofstream out_ri(ri_outfile);
-    ridx.serialize(out_ri);
-    out_fp.close();
+    timer.end();
+    submessage("Serialization Complete");
+    timer.midTime();
 
-    t_insert_end = std::chrono::high_resolution_clock::now();
-
-    std::cout << "Serializing Complete" << std::endl;
-    std::cout << "Elapsed time (s): " << std::chrono::duration<double, std::ratio<1>>(t_insert_end - t_insert_mid).count() << std::endl;
-
-    std::cout << "Done" << std::endl;
-    std::cout << "Memory peak: " << malloc_count_peak() << std::endl;
-    std::cout << "Total Elapsed time (s): " << std::chrono::duration<double, std::ratio<1>>(t_insert_end - t_insert_start).count() << std::endl;
+    message("Done", false);
+    mem_peak();
+    timer.startTime();
 
     return 0;
 }

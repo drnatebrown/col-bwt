@@ -91,6 +91,7 @@ public:
         LF_runs = vector<LF_row>();
         vector<vector<size_t>> L_block_indices = vector<vector<size_t>>(ALPHABET_SIZE);
         
+        status("Constructing BWT table (LF)");
         char c;
         ulint i = 0;
         r = 0;
@@ -106,12 +107,15 @@ public:
             n+=length;
         }
         r = LF_runs.size();
+        status();
 
+        status("Computing values of BWT table");
         compute_table(L_block_indices);
+        status();
 
         #ifdef PRINT_STATS
-        cout << "Text runs: " << runs() << std::endl;
-        cout << "Text length: " << size() << std::endl;
+        stat("Text runs", runs());
+        stat("Text length", size());
         #endif
     }
 
@@ -123,6 +127,7 @@ public:
         LF_runs = vector<LF_row>();
         vector<vector<size_t>> L_block_indices = vector<vector<size_t>>(ALPHABET_SIZE);
         
+        status("Constructing BWT table");
         char last_c;
         char c;
         ulint i = 0;
@@ -149,12 +154,15 @@ public:
         n+=length;
 
         r = LF_runs.size();
+        status();
 
+        status("Computing values of BWT table");
         compute_table(L_block_indices);
+        status();
 
         #ifdef PRINT_STATS
-        cout << "Text runs: " << runs() << std::endl;
-        cout << "Text length: " << size() << std::endl;
+        stat("Text runs", runs());
+        stat("Text length", size());
         #endif
     }
 
@@ -232,19 +240,19 @@ public:
 
     void bwt_stats()
     {
-        cout << "Number of BWT equal-letter runs: r = " <<  r << std::endl;
-        cout << "Length of complete BWT: n = " << n << std::endl;
-        cout << "Rate n/r = " << double(n) / r <<  r << std::endl;
-        cout << "log2(r) = " << log2(double(r)) <<  r << std::endl;
-        cout << "log2(n/r) = " << log2(double(n) / r) <<  r << std::endl;
+        log("Number of BWT equal-letter runs: r = ", r);
+        log("Length of complete BWT: n = ", n);
+        log("Rate n/r = ", double(n) / r);
+        log("log2(r) = ", log2(double(r)));
+        log("log2(n/r) = ", log2(double(n) / r));
     }
 
     void mem_stats()
     {
-        cout << "Memory consumption (bytes)." << std::endl;
-        cout << "   LF Table: " << r + 4*r*BWT_BYTES << std::endl;
-        cout << "           Chars: " << r << std::endl;
-        cout << "            Ints: " << r*BWT_BYTES << std::endl;
+        log("Memory (bytes):");
+        log("   LF Table: ", r + 4*r*BWT_BYTES);
+        log("           Chars: ", r);
+        log("            Ints: ", r*BWT_BYTES);
     }
 
     /* serialize to the ostream
@@ -297,7 +305,7 @@ protected:
 
     vector<T> LF_runs;
 
-    void compute_table(vector<vector<ulint>> L_block_indices) {
+    void compute_table(vector<vector<ulint>> L_block_indices) {\
         ulint curr_L_num = 0;
         ulint L_seen = 0;
         ulint F_seen = 0;

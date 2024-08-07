@@ -1,5 +1,5 @@
 /* FL_table - Table supporting first-to-last mapping of BWT
-    Copyright (C) 2021 Nathaniel Brown
+    Copyright (C) 2024 Nathaniel Brown
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
@@ -16,7 +16,7 @@
    \brief FL_table.hpp Table supporting first-to-last mapping of BWT
    \author Nathaniel Brown
    \author Massimiliano Rossi
-   \date 19/11/2021
+   \date 07/08/2021
 */
 
 #ifndef _FL_TABLE_HH
@@ -93,6 +93,7 @@ public:
         vector<vector<ulint>> L_block_indices = vector<vector<ulint>>(ALPHABET_SIZE);
         vector<vector<ulint>> char_runs = vector<vector<ulint>>(ALPHABET_SIZE); // Vector containing lengths for runs of certain character
 
+        status("Constructing BWT table (FL)");
         char c;
         n = 0;
         ulint i = 0;
@@ -111,12 +112,15 @@ public:
             n+=length;
         }
         r = L_chars.size();
+        status();
 
+        status("Computing values of BWT table");
         compute_table(L_chars, L_lens, L_block_indices, char_runs);
+        status();
 
         #ifdef PRINT_STATS
-        cout << "Text runs: " << runs() << std::endl;
-        cout << "Text length: " << size() << std::endl;
+        stat("Text runs", runs());
+        stat("Text length", size());
         #endif
     }
 
@@ -130,6 +134,7 @@ public:
         vector<vector<ulint>> L_block_indices = vector<vector<ulint>>(ALPHABET_SIZE);
         vector<vector<ulint>> char_runs = vector<vector<ulint>>(ALPHABET_SIZE); // Vector containing lengths for runs of certain character
         
+        status("Constructing BWT table (FL)");
         char last_c;
         char c;
         ulint i = 0;
@@ -160,12 +165,15 @@ public:
         n+=length;
 
         r = L_chars.size();
+        status();
 
+        status("Computing values of BWT table");
         compute_table(L_chars, L_lens, L_block_indices, char_runs);
+        status();
 
         #ifdef PRINT_STATS
-        cout << "Text runs: " << runs() << std::endl;
-        cout << "Text length: " << size() << std::endl;
+        stat("Text runs", runs());
+        stat("Text length", size());
         #endif
     }
 
@@ -241,19 +249,19 @@ public:
 
     void bwt_stats()
     {
-        cout << "Number of BWT equal-letter runs: r = " <<  r << std::endl;
-        cout << "Length of complete BWT: n = " << n << std::endl;
-        cout << "Rate n/r = " << double(n) / r <<  r << std::endl;
-        cout << "log2(r) = " << log2(double(r)) <<  r << std::endl;
-        cout << "log2(n/r) = " << log2(double(n) / r) <<  r << std::endl;
+        log("Number of BWT equal-letter runs: r = ", r);
+        log("Length of complete BWT: n = ", n);
+        log("Rate n/r = ", double(n) / r);
+        log("log2(r) = ", log2(double(r)));
+        log("log2(n/r) = ", log2(double(n) / r));
     }
 
     void mem_stats()
     {
-        cout << "Memory consumption (bytes)." << std::endl;
-        cout << "   FL Table: " << r + 4*r*BWT_BYTES << std::endl;
-        cout << "           Chars: " << r << std::endl;
-        cout << "            Ints: " << r*BWT_BYTES << std::endl;
+        log("Memory (bytes):");
+        log("   FL Table: ", r + 4*r*BWT_BYTES);
+        log("           Chars: ", r);
+        log("            Ints: ", r*BWT_BYTES);
     }
 
     /* serialize to the ostream
