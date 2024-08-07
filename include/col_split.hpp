@@ -159,19 +159,19 @@ public:
         #endif
     }
 
-    void save(string filename) {
-        std::ofstream out_runs(filename + ".col_runs");
-        col_runs.serialize(out_runs);
-        out_runs.close();
+    // void save(string filename) {
+    //     std::ofstream out_runs(filename + ".col_runs");
+    //     col_runs.serialize(out_runs);
+    //     out_runs.close();
 
-        std::ofstream out_ids(filename + ".col_ids");
-        for (size_t i = 0; i < col_run_ids.size(); ++i) {
-            out_ids.write(reinterpret_cast<const char*>(&col_run_ids[i]), sizeof(RW_BYTES));
-        }
-    }
+    //     std::ofstream out_ids(filename + ".col_ids");
+    //     for (size_t i = 0; i < col_run_ids.size(); ++i) {
+    //         out_ids.write(reinterpret_cast<const char*>(&col_run_ids[i]), sizeof(RW_BYTES));
+    //     }
+    // }
 
     /* Space saving option to mod the values before saving */
-    void save_mod(string filename, int id_bits=ID_BYTES) {
+    void save_mod(string filename, int id_bits=ID_BITS) {
         assert (id_bits <= sizeof(ulint) * 8);
         ulint id_max = 1 << id_bits;
         ulint id_bytes = (id_bits + 7) / 8; // bytes needed to store id
