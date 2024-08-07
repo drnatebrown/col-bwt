@@ -158,7 +158,7 @@ public:
         #endif
     }
 
-    void save(string filename, int id_bits = RW_BYTES * 8) {
+    void save(string filename, int id_bits = ID_BITS) {
         assert (id_bits <= sizeof(ulint) * 8);
         ulint id_max = 1 << id_bits;
         ulint id_bytes = (id_bits + 7) / 8; // bytes needed to store id
@@ -175,8 +175,6 @@ public:
     }
 
 private:
-    typedef typename sd_vector<>::select_1_type sd_select;
-
     typedef struct {
         ulint interval;
         ulint offset;

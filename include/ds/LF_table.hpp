@@ -1,4 +1,4 @@
-/* FL_table - Table supporting first-to-last mapping of BWT
+/* Lf_table - Uncompressed version of OptBWTR (LF table)
     Copyright (C) 2021 Nathaniel Brown
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -12,15 +12,14 @@
     along with this program.  If not, see http://www.gnu.org/licenses/ .
 */
 /*!
-   \file FL_table.hpp
-   \brief FL_table.hpp Table supporting first-to-last mapping of BWT
+   \file LF_table.hpp
+   \brief LF_table.hpp Uncompressed version of OptBWTR (LF table)
    \author Nathaniel Brown
-   \author Massimiliano Rossi
    \date 19/11/2021
 */
 
-#ifndef _FL_TABLE_HH
-#define _FL_TABLE_HH
+#ifndef _LF_TABLE_HH
+#define _LF_TABLE_HH
 
 #include <common.hpp>
 #include <sdsl/structure_tree.hpp>
@@ -28,12 +27,13 @@
 
 using namespace std;
 
-class FL_table
+class LF_table
 {
 public:
-    // Row of the FL table
-    typedef struct FL_row
+    // Row of the LF table
+    class LF_row
     {
+    public:
         char character;
         ulint idx : BWT_BITS;
         ulint interval : BWT_BITS;
@@ -78,41 +78,35 @@ public:
         }
     };
 
+    LF_table() {}
 
-    FL_table() {}
-
-    FL_table(std::ifstream &heads, std::ifstream &lengths)
+    LF_table(std::ifstream &heads, std::ifstream &lengths)
     {
         heads.clear();
         heads.seekg(0);
         lengths.clear();
         lengths.seekg(0);
         
-        vector<char> L_chars = vector<char>();
-        vector<ulint> L_lens = vector<ulint>();
-        vector<vector<ulint>> L_block_indices = vector<vector<ulint>>(ALPHABET_SIZE);
-        vector<vector<ulint>> char_runs = vector<vector<ulint>>(ALPHABET_SIZE); // Vector containing lengths for runs of certain character
-
+        LF_runs = vector<LF_row>();
+        vector<vector<size_t>> L_block_indices = vector<vector<size_t>>(ALPHABET_SIZE);
+        
         char c;
-        n = 0;
         ulint i = 0;
+        r = 0;
+        n = 0;
         while ((c = heads.get()) != EOF)
         {
-            if (c <= TERMINATOR) c = TERMINATOR;
-
             size_t length = 0;
             lengths.read((char *)&length, 5);
+            if (c <= TERMINATOR) c = TERMINATOR;
 
-            L_chars.push_back(c);
-            L_lens.push_back(length);
+            LF_runs.push_back({c, n, 0, 0});
             L_block_indices[c].push_back(i++);
-            char_runs[c].push_back(length);
-
             n+=length;
         }
-        r = L_chars.size();
+        r = LF_runs.size();
 
-        compute_table(L_chars, L_lens, L_block_indices, char_runs);
+        compute_table(L_block_indices);
 
         #ifdef PRINT_STATS
         cout << "Text runs: " << runs() << std::endl;
@@ -120,15 +114,13 @@ public:
         #endif
     }
 
-    FL_table(std::ifstream &bwt)
+    LF_table(std::ifstream &bwt)
     {
         bwt.clear();
         bwt.seekg(0);
         
-        vector<char> L_chars = vector<char>();
-        vector<ulint> L_lens = vector<ulint>();
-        vector<vector<ulint>> L_block_indices = vector<vector<ulint>>(ALPHABET_SIZE);
-        vector<vector<ulint>> char_runs = vector<vector<ulint>>(ALPHABET_SIZE); // Vector containing lengths for runs of certain character
+        LF_runs = vector<LF_row>();
+        vector<vector<size_t>> L_block_indices = vector<vector<size_t>>(ALPHABET_SIZE);
         
         char last_c;
         char c;
@@ -142,10 +134,8 @@ public:
             
             if (i != 0 && c != last_c)
             {
-                L_chars.push_back(c);
-                L_lens.push_back(length);
-                L_block_indices[c].push_back(i++);
-                char_runs[c].push_back(length);
+                LF_runs.push_back({last_c, n, 0, 0});
+                L_block_indices[last_c].push_back(i++); 
                 n+=length;
                 length = 0;
             }
@@ -153,15 +143,13 @@ public:
             last_c = c;
         }
         // Step for final character
-        L_chars.push_back(c);
-        L_lens.push_back(length);
-        L_block_indices[c].push_back(i++);
-        char_runs[c].push_back(length);
+        LF_runs.push_back({last_c, length, 0, 0});
+        L_block_indices[last_c].push_back(i++);  
         n+=length;
 
-        r = L_chars.size();
+        r = LF_runs.size();
 
-        compute_table(L_chars, L_lens, L_block_indices, char_runs);
+        compute_table(L_block_indices);
 
         #ifdef PRINT_STATS
         cout << "Text runs: " << runs() << std::endl;
@@ -169,54 +157,10 @@ public:
         #endif
     }
 
-    const FL_row get(size_t i)
+    const LF_row get(size_t i)
     {
-        assert(i < FL_runs.size());
-        return FL_runs[i];
-    }
-
-    ulint size()
-    {
-        return n;
-    }
-
-    ulint runs()
-    {
-        return r;
-    }
-
-    void decompress(std::string outfile) 
-    {
-        std::ofstream out(outfile);
-
-        // Forward step to first character
-        std::pair<ulint, ulint> pos = FL(0, 0);
-        pos = FL(pos.first, pos.second);
-
-        char c;
-        while((c = get_char(pos.first)) > TERMINATOR) 
-        {
-            out << c;
-            pos = FL(pos.first, pos.second);
-        }
-    }
-
-    /*
-     * \param Run position (RLE intervals)
-     * \param Current character offset in block
-     * \return block position and offset of preceding character
-     */
-    std::pair<ulint, ulint> FL(ulint run, ulint offset)
-    {
-        ulint next_interval = FL_runs[run].interval;
-	    ulint next_offset = FL_runs[run].offset + offset;
-
-	    while (next_offset >= get_length(next_interval)) 
-        {
-            next_offset -= get_length(next_interval++);
-        }
-
-	    return std::make_pair(next_interval, next_offset);
+        assert(i < LF_runs.size());
+        return LF_runs[i];
     }
 
     uchar get_char(ulint i)
@@ -234,9 +178,54 @@ public:
         return get(i).idx;
     }
 
+    ulint size()
+    {
+        return n;
+    }
+
+    ulint runs()
+    {
+        return r;
+    }
+
+    void invert(std::string outfile) 
+    {
+        std::ofstream out(outfile);
+
+        ulint interval = 0;
+        ulint offset = 0;
+
+        char c;
+        while((c = get_char(interval)) > TERMINATOR) 
+        {
+            out << c;
+            std::pair<ulint, ulint> pos = LF(interval, offset);
+            interval = pos.first;
+            offset = pos.second;
+        }
+    }
+
+    /*
+     * \param Run position (RLE intervals)
+     * \param Current character offset in block
+     * \return block position and offset of preceding character
+     */
+    std::pair<ulint, ulint> LF(ulint run, ulint offset)
+    {
+        ulint next_interval = LF_runs[run].interval;
+        ulint next_offset = LF_runs[run].offset + offset;
+
+        while (next_offset >= get_length(next_interval)) 
+        {
+            next_offset -= get_length(next_interval++);
+        }
+
+        return std::make_pair(next_interval, next_offset);
+    }
+
     std::string get_file_extension() const
     {
-        return ".FL_table";
+        return ".LF_table";
     }
 
     void bwt_stats()
@@ -251,7 +240,7 @@ public:
     void mem_stats()
     {
         cout << "Memory consumption (bytes)." << std::endl;
-        cout << "   FL Table: " << r + 4*r*BWT_BYTES << std::endl;
+        cout << "   LF Table: " << r + 4*r*BWT_BYTES << std::endl;
         cout << "           Chars: " << r << std::endl;
         cout << "            Ints: " << r*BWT_BYTES << std::endl;
     }
@@ -270,9 +259,13 @@ public:
         out.write((char *)&r, sizeof(r));
         written_bytes += sizeof(r);
 
-        for(size_t i = 0; i < r; ++i)
+        size_t size = LF_runs.size();
+        out.write((char *)&size, sizeof(size));
+        written_bytes += sizeof(size);
+
+        for(size_t i = 0; i < size; ++i)
         {
-            written_bytes += FL_runs[i].serialize(out, v, "FL_run_" + std::to_string(i));
+            written_bytes += LF_runs[i].serialize(out, v, "LF_run_" + std::to_string(i));
         }
 
         return written_bytes;
@@ -288,56 +281,43 @@ public:
         in.read((char *)&n, sizeof(n));
         in.read((char *)&r, sizeof(r));
 
-        FL_runs = std::vector<FL_row>(r);
-        for(size_t i = 0; i < r; ++i)
+        in.read((char *)&size, sizeof(size));
+        LF_runs = std::vector<LF_row>(size);
+        for(size_t i = 0; i < size; ++i)
         {
-            FL_runs[i].load(in);
+            LF_runs[i].load(in);
         }
     }
-    
+
 protected:
     ulint n; // Length of BWT
     ulint r; // Runs of BWT
 
-    vector<FL_row> FL_runs;
+    vector<LF_row> LF_runs;
 
-    void compute_table(vector<char> L_chars, vector<ulint> L_lens, vector<vector<ulint>> L_block_indices, vector<vector<ulint>> char_runs) {
-        FL_runs = vector<FL_row>(r);
-        size_t i = 0;
-        size_t curr_idx = 0;
-        for (size_t c = 0; c < ALPHABET_SIZE; ++c)
-        {
-            for (size_t j = 0; j < char_runs[c].size(); ++j) {
-                size_t length = char_runs[c][j];
-                FL_runs[i].character = (unsigned char) c;
-                FL_runs[i].idx = curr_idx;
-                ++i;
-                curr_idx += length;
-            }
-        }
-
-        ulint k = 0; // current row to be filled
+    void compute_table(vector<vector<ulint>> L_block_indices) {
+        ulint curr_L_num = 0;
+        ulint L_seen = 0;
+        ulint F_seen = 0;
         for(size_t i = 0; i < L_block_indices.size(); ++i) 
         {
-            ulint F_curr = 0; // current position when scanning F
-            ulint F_seen = 0; // characters seen before position in F
-            ulint L_curr = 0; // current position when scanning L
-            ulint L_seen = 0; // characters seen before position in L
             for(size_t j = 0; j < L_block_indices[i].size(); ++j) 
             {
-                while (L_curr < L_block_indices[i][j]) {
-                    L_seen += L_lens[L_curr++];
-                }
-                while (F_seen + get_length(F_curr) <= L_seen) {
-                    F_seen += get_length(F_curr++);
-                }
+                ulint pos = L_block_indices[i][j];
 
-                FL_runs[k].interval = F_curr;
-                FL_runs[k].offset = L_seen - F_seen;
-                ++k;
+                LF_runs[pos].interval = curr_L_num;
+                LF_runs[pos].offset = F_seen - L_seen;
+
+                F_seen += get_length(pos);
+
+                while (curr_L_num < r && F_seen >= L_seen + get_length(curr_L_num)) 
+                {
+                    L_seen += get_length(curr_L_num);
+                    ++curr_L_num;
+                }
             }
         }
     }
 };
 
-#endif /* end of include guard: _FL_TABLE_HH */
+#endif /* end of include guard: _LF_TABLE_HH */

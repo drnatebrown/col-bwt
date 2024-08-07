@@ -35,15 +35,25 @@
 #include <assert.h>
 
 #include <sdsl/int_vector.hpp>
+#include <sdsl/sd_vector.hpp>
 
 #define ALPHABET_SIZE 256
 #define RW_BYTES 5
+
 #define BWT_BYTES 5
+#define BWT_BITS (BWT_BYTES * 8)
+#define ID_BITS 40
+#define ID_BYTES (ID_BITS + 7) / 8
+
 #define PRINT_STATS 1
+
 
 static const uint8_t TERMINATOR = 1;
 typedef unsigned long int ulint;
 typedef unsigned char uchar;
+
+typedef typename sdsl::sd_vector<>::select_1_type sd_select;
+typedef typename sdsl::sd_vector<>::rank_1_type sd_rank;
 
 inline void error(const std::string& msg) {
     std::cerr << "[ERROR]: " << msg << std::endl;

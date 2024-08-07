@@ -19,8 +19,7 @@
 */
 
 #include <common.hpp>
-#include <FL_table.hpp>
-#include <r_index.hpp>
+#include <col_bwt.hpp>
 
 #include <sdsl/io.hpp>
 #include <sdsl/int_vector.hpp>
@@ -32,8 +31,17 @@ int main(int argc, char *const argv[])
     Args args;
     parseArgs(argc, argv, args);
 
-    std::cout << "Building move structure supporting FL mapping: " << std::endl;
+    std::cout << "Building Col BWT supporting Co-lineary Statistics: " << std::endl;
     std::chrono::high_resolution_clock::time_point t_insert_start = std::chrono::high_resolution_clock::now();
+
+    std::string col_ids_fname = args.filename + ".col_ids";
+    std::ifstream ifs_col_ids(col_ids_fname);
+    std::string col_runs_fname = args.filename + ".col_runs";
+    std::ifstream ifs_col_runs(col_runs_fname);
+
+    ifs_col_runs.seekg(0);
+    sdsl::sd_vector<> col_runs;
+    col_runs.load(ifs_col_runs);
 
     std::string bwt_fname = args.filename + ".bwt";
 
@@ -44,29 +52,23 @@ int main(int argc, char *const argv[])
 
     ifs_heads.seekg(0);
     ifs_len.seekg(0);
-    FL_table tbl(ifs_heads, ifs_len);
-    std::cout << "Building r-index supporting FL mapping: " << std::endl;
-    r_index ridx(args.filename);
+    ifs_col_ids.seekg(0);
+    col_bwt col_bwt(ifs_heads, ifs_len, ifs_col_ids, col_runs);
 
     std::chrono::high_resolution_clock::time_point t_insert_end = std::chrono::high_resolution_clock::now();
 
     std::cout << "Construction Complete" << std::endl;
     std::cout << "Elapsed time (s): " << std::chrono::duration<double, std::ratio<1>>(t_insert_end - t_insert_start).count() << std::endl;
 
-    tbl.bwt_stats();
-    tbl.mem_stats();
+    col_bwt.bwt_stats();
+    col_bwt.mem_stats();
 
     std::cout << "Serializing" << std::endl;
     std::chrono::high_resolution_clock::time_point t_insert_mid = std::chrono::high_resolution_clock::now();
 
-    std::string tbl_outfile = args.filename + tbl.get_file_extension();
-    std::ofstream out_fp(tbl_outfile);
-    tbl.serialize(out_fp);
-    out_fp.close();
-
-    std::string ri_outfile = args.filename + ridx.get_file_extension();
-    std::ofstream out_ri(ri_outfile);
-    ridx.serialize(out_ri);
+    std::string col_bwt_outfile = args.filename + col_bwt.get_file_extension();
+    std::ofstream out_fp(col_bwt_outfile);
+    col_bwt.serialize(out_fp);
     out_fp.close();
 
     t_insert_end = std::chrono::high_resolution_clock::now();

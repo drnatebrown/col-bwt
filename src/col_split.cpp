@@ -12,7 +12,7 @@
     along with this program.  If not, see http://www.gnu.org/licenses/ .
 */
 /*!
-   \file build_FL.cpp
+   \file cil_split.cpp
    \brief Builds table supporting first-to-last mapping of BWT
    \author Nathaniel Brown
    \date 06/13/2024
@@ -107,5 +107,5 @@ int main(int argc, char *const argv[])
     std::cout << "Memory peak: " << malloc_count_peak() << std::endl;
     std::cout << "Total Elapsed time (s): " << std::chrono::duration<double, std::ratio<1>>(t_insert_end - t_insert_start).count() << std::endl;
 
-  return 0;
+    return 0;
 }
