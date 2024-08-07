@@ -49,11 +49,11 @@ int main(int argc, char *const argv[])
 
     timer.end();
 
-    submessage("Construction Complete");
-    timer.startTime();
-
     tbl.bwt_stats();
     tbl.mem_stats();
+
+    submessage("Construction Complete");
+    timer.startTime();
 
     message("Serializing: ");
     timer.mid();

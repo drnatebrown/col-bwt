@@ -50,11 +50,11 @@ int main(int argc, char *const argv[])
     ifstream fs_tbl(filename_tbl);
     tbl.load(fs_tbl);
 
+    tbl.bwt_stats();
+
     timer.end();
     submessage("Load Complete");
     timer.startTime();
-
-    tbl.bwt_stats();
 
     timer.mid();
     message("Loading COL Positions: ");

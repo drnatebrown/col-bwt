@@ -56,11 +56,11 @@ int main(int argc, char *const argv[])
     col_bwt col_bwt(ifs_heads, ifs_len, ifs_col_ids, col_runs);
     timer.end();
 
-    submessage("Construction Complete");
-    timer.startTime();
-
     col_bwt.bwt_stats();
     col_bwt.mem_stats();
+
+    submessage("Construction Complete");
+    timer.startTime();
 
     message("Serializing");
     timer.mid();
