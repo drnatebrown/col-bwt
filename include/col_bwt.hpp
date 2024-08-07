@@ -13,39 +13,39 @@
 
 using namespace std;
 
-class col_bwt : public LF_table
+// Row of the LF table
+class col_row : public LF_row
 {
 public:
-    // Row of the LF table
-    class col_row : public LF_row
+    ulint col_id : ID_BITS;
+
+    size_t serialize(std::ostream &out, sdsl::structure_tree_node *v = nullptr, std::string name ="")
     {
-    public:
-        ulint col_id : ID_BITS;
+        sdsl::structure_tree_node *child = sdsl::structure_tree::add_child(v, name, sdsl::util::class_name(*this));
+        size_t written_bytes = 0;
 
-        size_t serialize(std::ostream &out, sdsl::structure_tree_node *v = nullptr, std::string name ="")
-        {
-            sdsl::structure_tree_node *child = sdsl::structure_tree::add_child(v, name, sdsl::util::class_name(*this));
-            size_t written_bytes = 0;
+        size_t temp = col_id;
+        out.write((char *)&temp, ID_BYTES);
+        written_bytes += ID_BYTES;
 
-            size_t temp = col_id;
-            out.write((char *)&temp, ID_BYTES);
-            written_bytes += ID_BYTES;
+        LF_row::serialize(out, child, "LF_row");
 
-            LF_row::serialize(out, child, "LF_row");
+        return written_bytes;
+    }
 
-            return written_bytes;
-        }
+    void load(std::istream &in)
+    {
+        size_t temp;
+        in.read((char *)&temp, BWT_BYTES);
+        col_id = temp;
 
-        void load(std::istream &in)
-        {
-            size_t temp;
-            in.read((char *)&temp, BWT_BYTES);
-            col_id = temp;
+        LF_row::load(in);
+    }
+};
 
-            LF_row::load(in);
-        }
-    };
-
+class col_bwt : public LF_table<col_row>
+{
+public:
     col_bwt() {}
 
     col_bwt(std::ifstream &heads, std::ifstream &lengths, std::ifstream &col_ids, sdsl::sd_vector<> splits)
@@ -98,28 +98,30 @@ public:
                     LF_runs.push_back({c, n, 0, 0, curr_id});
                     col_ids.read((char *)&curr_id, ID_BYTES);
 
-                    n += (n - s_curr);
-                    length -= (n - s_curr);
+                    ulint delta = s_curr - n;
+                    n += delta;
+                    length -= delta;
                     ++s;
-                    if (s < s_set_bits) s_curr = s_select(s + 1);
+                    s_curr = (s < s_set_bits) ? s_select(s + 1) : 0;
                 }
                 // otherwise the split corresponds to this run, fetch its id first
-                else if (s < s_set_bits - 1) {
+                else {
                     col_ids.read((char *)&curr_id, ID_BYTES);
                     LF_runs.push_back({c, n, 0, 0, curr_id});
 
+                    ++s;
+                    s_curr = (s < s_set_bits) ? s_select(s + 1) : 0;
                     // The length of this run is determined by the next split
-                    size_t s_next = s_select(++s + 1);
-                    if (s_next < n + length) {
-                        n += (n - s_next);
-                        length -= (n - s_next);
+                    if (s < s_set_bits && s_curr < n + length) {
+                        ulint delta = s_curr - n;
+                        n += delta;
+                        length -= delta;
                     }
                     // Else its the rest of this run
                     else {
                         n += length;
                         length = 0;
                     }
-                    s_curr = s_next;
                 }
             }
 
@@ -247,7 +249,7 @@ public:
         cout << "   Col BWT: " << r + 4*r*BWT_BYTES + ID_BYTES << std::endl;
         cout << "           Chars: " << r << std::endl;
         cout << "            Ints: " << r*BWT_BYTES << std::endl;
-        cout << "             IDs: " << ID_BYTES << std::endl;
+        cout << "             IDs: " << r*ID_BYTES << std::endl;
     }
 
     /* serialize to the ostream
@@ -280,8 +282,6 @@ public:
 
 protected:
     ulint bwt_r;
-
-    vector<col_row> LF_runs;
 };
 
 #endif /* end of include guard: _COL_BWT_HH */

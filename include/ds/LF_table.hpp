@@ -27,57 +27,58 @@
 
 using namespace std;
 
+// Row of the LF table
+class LF_row
+{
+public:
+    char character;
+    ulint idx : BWT_BITS;
+    ulint interval : BWT_BITS;
+    ulint offset : BWT_BITS;
+
+    size_t serialize(std::ostream &out, sdsl::structure_tree_node *v = nullptr, std::string name ="")
+    {
+        sdsl::structure_tree_node *child = sdsl::structure_tree::add_child(v, name, sdsl::util::class_name(*this));
+        size_t written_bytes = 0;
+
+        out.write((char *)&character, sizeof(character));
+        written_bytes += sizeof(character);
+
+        size_t temp = idx;
+        out.write((char *)&temp, BWT_BYTES);
+        written_bytes += BWT_BYTES;
+
+        temp = interval;
+        out.write((char *)&temp, BWT_BYTES);
+        written_bytes += BWT_BYTES;
+
+        temp = offset;
+        out.write((char *)&temp, BWT_BYTES);
+        written_bytes += BWT_BYTES;
+
+        return written_bytes;
+    }
+
+    void load(std::istream &in)
+    {
+        in.read((char *)&character, sizeof(character));
+
+        size_t temp;
+        in.read((char *)&temp, BWT_BYTES);
+        idx = temp;
+
+        in.read((char *)&temp, BWT_BYTES);
+        interval = temp;
+
+        in.read((char *)&temp, BWT_BYTES);
+        offset = temp;
+    }
+};
+
+template <typename T = LF_row>
 class LF_table
 {
 public:
-    // Row of the LF table
-    class LF_row
-    {
-    public:
-        char character;
-        ulint idx : BWT_BITS;
-        ulint interval : BWT_BITS;
-        ulint offset : BWT_BITS;
-
-        size_t serialize(std::ostream &out, sdsl::structure_tree_node *v = nullptr, std::string name ="")
-        {
-            sdsl::structure_tree_node *child = sdsl::structure_tree::add_child(v, name, sdsl::util::class_name(*this));
-            size_t written_bytes = 0;
-
-            out.write((char *)&character, sizeof(character));
-            written_bytes += sizeof(character);
-
-            size_t temp = idx;
-            out.write((char *)&temp, BWT_BYTES);
-            written_bytes += BWT_BYTES;
-
-            temp = interval;
-            out.write((char *)&temp, BWT_BYTES);
-            written_bytes += BWT_BYTES;
-
-            temp = offset;
-            out.write((char *)&temp, BWT_BYTES);
-            written_bytes += BWT_BYTES;
-
-            return written_bytes;
-        }
-
-        void load(std::istream &in)
-        {
-            in.read((char *)&character, sizeof(character));
-
-            size_t temp;
-            in.read((char *)&temp, BWT_BYTES);
-            idx = temp;
-
-            in.read((char *)&temp, BWT_BYTES);
-            interval = temp;
-
-            in.read((char *)&temp, BWT_BYTES);
-            offset = temp;
-        }
-    };
-
     LF_table() {}
 
     LF_table(std::ifstream &heads, std::ifstream &lengths)
@@ -168,6 +169,7 @@ public:
         return get(i).character;
     }
 
+    // TODO specilization for template with lengths, not idx
     ulint get_length(ulint i)
     {
         return (i == r - 1) ? n : (get_idx(i + 1) - get_idx(i));
@@ -282,7 +284,7 @@ public:
         in.read((char *)&r, sizeof(r));
 
         in.read((char *)&size, sizeof(size));
-        LF_runs = std::vector<LF_row>(size);
+        LF_runs = std::vector<T>(size);
         for(size_t i = 0; i < size; ++i)
         {
             LF_runs[i].load(in);
@@ -293,7 +295,7 @@ protected:
     ulint n; // Length of BWT
     ulint r; // Runs of BWT
 
-    vector<LF_row> LF_runs;
+    vector<T> LF_runs;
 
     void compute_table(vector<vector<ulint>> L_block_indices) {
         ulint curr_L_num = 0;
