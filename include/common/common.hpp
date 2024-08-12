@@ -41,16 +41,24 @@
 #include <malloc_count.h>
 
 /* CONFIGURABLE */
-#define ALPHABET_SIZE 256
 #define RW_BYTES 5
 #define BWT_BYTES 5
 #define ID_BITS 40
-#define PRINT_STATS 0
+// #define PRINT_STATS
+#define DNA_ALPHABET
+
+#ifdef DNA_ALPHABET
+#define ALPHABET_SIZE 6
+#define ALPHABET_BITS 3
+#else
+#define ALALPHABET_SIZE 256
+#define ALPHABET_BITS 8
+#endif
 
 #define BWT_BITS (BWT_BYTES * 8)
 #define ID_BYTES (ID_BITS + 7) / 8
 
-bool verbose = 1;
+bool verbose = false;
 
 static const uint8_t TERMINATOR = 1;
 typedef unsigned long int ulint;
@@ -174,7 +182,8 @@ private:
 struct Args
 {
     std::string filename = "";
-    bool rle   = true; // read in RLBWT
+    bool rle = true; // read in RLBWT
+    bool verb = false; // verbose output
     int N = 0; // size of collection
 };
 
@@ -185,12 +194,16 @@ void parseArgs(int argc, char *const argv[], Args &arg)
     extern int optind;
 
     std::string sarg;
-    while ((c = getopt(argc, argv, "rd:N:")) != -1)
+    while ((c = getopt(argc, argv, "rvN:")) != -1)
     {
         switch (c)
         {
         case 'r':
             arg.rle = true;
+            break;
+        case 'v':
+            arg.verb = true;
+            verbose = arg.verb;
             break;
         case 'N':
             sarg.assign(optarg);
@@ -208,7 +221,7 @@ void parseArgs(int argc, char *const argv[], Args &arg)
     }
     else
     {
-        std::cout << "ERROR: Invalid number of arguments\n";
+        error("Invalid number of arguments");
     }
 }
 
@@ -232,5 +245,25 @@ uint8_t bitsize(uint64_t x){
 	  if(x==0) return 1;
 	  return 64 - __builtin_clzll(x);
 }
+
+#ifdef DNA_ALPHABET
+constexpr uchar charToBits[ALPHABET_SIZE] = {
+    0b000, // TERMINATOR
+    0b001, // 'A'
+    0b010, // 'C'
+    0b011, // 'G'
+    0b100, // 'T'
+    0b101  // 'N'
+};
+
+constexpr uchar bitsToChar[ALPHABET_SIZE] = {
+    TERMINATOR, // TERMINATOR
+    'A',  // 001
+    'C',  // 010
+    'G',  // 011
+    'T',  // 100
+    'N'   // 101
+};
+#endif
 
 #endif /* end of include guard: _COMMON_HH */

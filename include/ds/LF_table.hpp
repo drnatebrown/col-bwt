@@ -31,7 +31,7 @@ using namespace std;
 class LF_row
 {
 public:
-    char character;
+    char character : ALPHABET_BITS;
     ulint idx : BWT_BITS;
     ulint interval : BWT_BITS;
     ulint offset : BWT_BITS;
@@ -41,10 +41,11 @@ public:
         sdsl::structure_tree_node *child = sdsl::structure_tree::add_child(v, name, sdsl::util::class_name(*this));
         size_t written_bytes = 0;
 
-        out.write((char *)&character, sizeof(character));
-        written_bytes += sizeof(character);
+        size_t temp = character;
+        out.write((char *)&temp, sizeof(char));
+        written_bytes += sizeof(char);
 
-        size_t temp = idx;
+        temp = idx;
         out.write((char *)&temp, BWT_BYTES);
         written_bytes += BWT_BYTES;
 
@@ -61,9 +62,10 @@ public:
 
     void load(std::istream &in)
     {
-        in.read((char *)&character, sizeof(character));
-
         size_t temp;
+        in.read((char *)&temp, sizeof(char));
+        character = temp;
+
         in.read((char *)&temp, BWT_BYTES);
         idx = temp;
 
@@ -92,7 +94,7 @@ public:
         vector<vector<size_t>> L_block_indices = vector<vector<size_t>>(ALPHABET_SIZE);
         
         status("Constructing BWT table (LF)");
-        char c;
+        uchar c;
         ulint i = 0;
         r = 0;
         n = 0;
@@ -101,6 +103,9 @@ public:
             size_t length = 0;
             lengths.read((char *)&length, 5);
             if (c <= TERMINATOR) c = TERMINATOR;
+            #ifdef DNA_ALPHABET
+            c = charToBits[c];
+            #endif
 
             LF_runs.push_back({c, n, 0, 0});
             L_block_indices[c].push_back(i++);
@@ -128,8 +133,8 @@ public:
         vector<vector<size_t>> L_block_indices = vector<vector<size_t>>(ALPHABET_SIZE);
         
         status("Constructing BWT table");
-        char last_c;
-        char c;
+        uchar last_c;
+        uchar c;
         ulint i = 0;
         r = 0;
         n = 0;
@@ -137,6 +142,9 @@ public:
         while ((c = bwt.get()) != EOF)
         {
             if (c <= TERMINATOR) c = TERMINATOR;
+            #ifdef DNA_ALPHABET
+            c = charToBits[c];
+            #endif
             
             if (i != 0 && c != last_c)
             {
@@ -174,6 +182,15 @@ public:
 
     uchar get_char(ulint i)
     {
+        #ifdef DNA_ALPHABET
+        return bitsToChar[get(i).character];
+        #else
+        return get(i).character;
+        #endif
+    }
+
+    uchar get_char_bits(ulint i)
+    {
         return get(i).character;
     }
 
@@ -205,7 +222,7 @@ public:
         ulint interval = 0;
         ulint offset = 0;
 
-        char c;
+        uchar c;
         while((c = get_char(interval)) > TERMINATOR) 
         {
             out << c;
@@ -231,6 +248,34 @@ public:
         }
 
         return std::make_pair(next_interval, next_offset);
+    }
+
+    std::pair<ulint, ulint> preceding(ulint run, uchar c)
+    {
+        #ifdef DNA_ALPHABET
+        c = charToBits[c];
+        #endif
+        while (get_char_bits(run) != c) 
+        {
+            if (run == 0) return std::make_pair(0, 0);
+            run = LF_runs[run--].interval;
+        }
+
+        return std::make_pair(run, get_length(run) - 1);
+    }
+
+    std::pair<ulint, ulint> successor(ulint run, uchar c)
+    {
+        #ifdef DNA_ALPHABET
+        c = charToBits[c];
+        #endif
+        while (get_char_bits(run) != c)  
+        {
+            if (run == r - 1) return std::make_pair(r - 1, 0);
+            run = LF_runs[run++].interval;
+        }
+
+        return std::make_pair(run, 0);
     }
 
     std::string get_file_extension() const
