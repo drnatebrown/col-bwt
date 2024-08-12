@@ -101,7 +101,7 @@ public:
         while ((c = heads.get()) != EOF)
         {
             size_t length = 0;
-            lengths.read((char *)&length, 5);
+            lengths.read((char *)&length, RW_BYTES);
             if (c <= TERMINATOR) c = TERMINATOR;
             #ifdef DNA_ALPHABET
             c = charToBits[c];
@@ -296,7 +296,7 @@ public:
     {
         log("Memory (bytes):");
         log("   LF Table: ", r + 4*r*BWT_BYTES);
-        log("           Chars: ", r);
+        log("           Chars: ", (r*ALPHABET_BITS + 7) / 8);
         log("            Ints: ", r*BWT_BYTES);
     }
 

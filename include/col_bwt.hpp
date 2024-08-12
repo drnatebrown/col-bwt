@@ -105,7 +105,7 @@ public:
         while ((c = heads.get()) != EOF)
         {
             size_t length = 0;
-            lengths.read((char *)&length, 5);
+            lengths.read((char *)&length, RW_BYTES);
             if (c <= TERMINATOR) c = TERMINATOR;
 
             while (s < s_set_bits && s_curr < n + length)

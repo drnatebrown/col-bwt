@@ -67,16 +67,17 @@ for chr in $CHR_NAMES; do
         log "Number of genomes: $N"
 
         mum_file=$dataset_sep.mums
-        if [[ ! -e $mum_file ]]; then
+        # if [[ ! -e $mum_file ]]; then
             mumemto_filename=$dataset_fa_dir/$filename
             log "[mumemto]" "Building RLBWT and finding MUMs of length atleast $MIN_MUM on $dataset"
             [ -e "$dataset_sep.parse" ] && pfp_flag="-s" || pfp_flag=""
-            [ ! -e "$dataset_sep.bwt.heads" ] && bwt_flag="-A" || bwt_flag=""
-            exec $mumemto_prg mum -i $dataset_fa_dir/files.txt -o $mumemto_filename -K -l $MIN_MUM $pfp_flag $bwt_flag
+            [ ! -e "$dataset_sep.bwt.heads" ] && bwt_flag="-R" || bwt_flag=""
+            [ ! -e "$dataset_sep.thr" ] && thr_flag="-T" || thr_flag=""
+            exec $mumemto_prg mum -i $dataset_fa_dir/files.txt -o $mumemto_filename -K -l $MIN_MUM $pfp_flag $bwt_flag $thr_flag
             mv $mumemto_filename.mums $mum_file
-        fi
+        # fi
 
-        if [[ ! -e $dataset_sep.bwt.heads ]]; then
+        if [[ ! -e $dataset_sep.bwt.heads || ! -e $dataset_sep.thr ]]; then
             log "[pfp-thresholds]" "Writing RLBWT, SA, and thresholds of $dataset"
             exec $pfp_thr_prg -r -f $dataset_fa_dir/$filename.fna
         fi

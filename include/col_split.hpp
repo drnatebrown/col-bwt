@@ -43,6 +43,7 @@ public:
         for (size_t i = 0; i < tbl.runs(); ++i) {
             ulint run_len = tbl.get_length(i);
 
+            // TODO Fix - N on mumemto and col_bwt side
             while (c_pos != col_pos.end() && *c_pos - N < run_start + run_len) {
                 range rg = {i, *c_pos - N - run_start, N};
                 vector<range> FL_ranges = FL_range(rg);

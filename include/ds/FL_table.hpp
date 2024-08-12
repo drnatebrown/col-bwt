@@ -102,7 +102,7 @@ public:
             if (c <= TERMINATOR) c = TERMINATOR;
 
             size_t length = 0;
-            lengths.read((char *)&length, 5);
+            lengths.read((char *)&length, RW_BYTES);
 
             L_chars.push_back(c);
             L_lens.push_back(length);
