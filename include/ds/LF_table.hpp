@@ -313,9 +313,9 @@ public:
     void mem_stats()
     {
         log("Memory (bytes):");
-        log("   LF Table: ", r + 4*r*BWT_BYTES);
-        log("           Chars: ", (r*ALPHABET_BITS + 7) / 8);
-        log("            Ints: ", r*BWT_BYTES);
+        log("   LF Table: ", bits_to_bytes(r*ALPHABET_BITS + 3*r*BWT_BITS));
+        log("           Chars: ", bits_to_bytes(r*ALPHABET_BITS));
+        log("            Ints: ", bits_to_bytes(r*BWT_BITS));
     }
 
     /* serialize to the ostream

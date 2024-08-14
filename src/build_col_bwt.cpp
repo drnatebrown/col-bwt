@@ -38,7 +38,7 @@ int main(int argc, char *const argv[])
     std::ifstream ifs_col_ids(col_ids_fname);
     std::string col_runs_fname = args.filename + ".col_runs";
     std::ifstream ifs_col_runs(col_runs_fname);
-    std::string thr_fname = args.filename + ".thr";
+    std::string thr_fname = args.filename + ".thr_pos";
     std::ifstream ifs_thr(thr_fname);
 
     ifs_col_runs.seekg(0);
@@ -56,11 +56,11 @@ int main(int argc, char *const argv[])
     ifs_len.seekg(0);
     ifs_col_ids.seekg(0);
     // col_bwt col_bwt(ifs_heads, ifs_len, ifs_col_ids, col_runs);
-    col_pml col_bwt(ifs_heads, ifs_len, ifs_col_ids, ifs_thr, col_runs);
+    col_pml tbl(ifs_heads, ifs_len, ifs_col_ids, ifs_thr, col_runs);
     timer.end();
 
-    col_bwt.bwt_stats();
-    col_bwt.mem_stats();
+    tbl.bwt_stats();
+    tbl.mem_stats();
 
     submessage("Construction Complete");
     timer.startTime();
@@ -68,9 +68,9 @@ int main(int argc, char *const argv[])
     message("Serializing");
     timer.mid();
 
-    std::string col_bwt_outfile = args.filename + col_bwt.get_file_extension();
-    std::ofstream out_fp(col_bwt_outfile);
-    col_bwt.serialize(out_fp);
+    std::string tbl_outfile = args.filename + tbl.get_file_extension();
+    std::ofstream out_fp(tbl_outfile);
+    tbl.serialize(out_fp);
     out_fp.close();
 
     timer.end();

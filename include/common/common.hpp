@@ -44,20 +44,22 @@
 #define RW_BYTES 5
 #define BWT_BYTES 5
 #define ID_BITS 40
+#define ASCII_SIZE 256
 // #define PRINT_STATS
 #define MULTI_THREAD
 #define DNA_ALPHABET
 
+/* NOT CONFIGURABLE */
 #ifdef DNA_ALPHABET
 #define ALPHABET_SIZE 6
 #define ALPHABET_BITS 3
 #else
-#define ALPHABET_SIZE 256
+#define ALPHABET_SIZE ASCII_SIZE
 #define ALPHABET_BITS 8
 #endif
 
 #define BWT_BITS (BWT_BYTES * 8)
-#define ID_BYTES (ID_BITS + 7) / 8
+#define ID_BYTES ((ID_BITS + 7) / 8)
 
 bool verbose = false;
 
@@ -117,7 +119,6 @@ inline void log(const std::string& msg, const T& value) {
         std::cout << indent() << "[LOG]: " << msg << to_str(value) << std::endl;
     }
 }
-
 
 inline void log(const std::string& msg) {
     if (verbose) {
@@ -250,15 +251,22 @@ uint8_t bitsize(uint64_t x){
 	  return 64 - __builtin_clzll(x);
 }
 
+ulint bits_to_bytes(const ulint bits){
+    return (bits + 7) / 8;
+}
+
 #ifdef DNA_ALPHABET
-constexpr uchar charToBits[ALPHABET_SIZE] = {
-    0b000, // TERMINATOR
-    0b001, // 'A'
-    0b010, // 'C'
-    0b011, // 'G'
-    0b100, // 'T'
-    0b101  // 'N'
-};
+constexpr std::array<uchar, ASCII_SIZE> initCharToBits() {
+    std::array<uchar, ASCII_SIZE> table = {};
+    table['A'] = 0b000;
+    table['C'] = 0b001;
+    table['G'] = 0b010;
+    table['T'] = 0b011;
+    table['N'] = 0b100;
+    table[TERMINATOR] = 0b101;
+    return table;
+}
+constexpr std::array<uchar, ASCII_SIZE> charToBits = initCharToBits();
 
 constexpr uchar bitsToChar[ALPHABET_SIZE] = {
     TERMINATOR, // TERMINATOR

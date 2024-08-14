@@ -154,6 +154,9 @@ public:
             size_t length = 0;
             lengths.read((char *)&length, RW_BYTES);
             if (c <= TERMINATOR) c = TERMINATOR;
+            #ifdef DNA_ALPHABET
+            c = charToBits[c];
+            #endif
 
             while (s < s_set_bits && s_curr < this->n + length)
             {
@@ -209,8 +212,9 @@ public:
         status();
 
         #ifdef PRINT_STATS
-        stat("Text runs", runs());
-        stat("Text length", size());
+        stat("Col runs", this->runs());
+        stat("BWT runs", bwt_runs());
+        stat("Text length", this->size());
         #endif
     }
 
@@ -251,6 +255,9 @@ public:
         while ((c = bwt.get()) != EOF)
         {
             if (c <= TERMINATOR) c = TERMINATOR;
+            #ifdef DNA_ALPHABET
+            c = charToBits[c];
+            #endif
             
             if (i != 0 && (c != last_c || i == s_curr))
             {
@@ -299,15 +306,10 @@ public:
         return bwt_r;
     }
 
-    std::string get_file_extension() const
-    {
-        return ".col_bwt";
-    }
-
     void bwt_stats()
     {
         log("Number of Col equal-letter runs: r = ", this->r);
-        log("Number of BWT equal-letter runs: r = ", bwt_r);
+        log("Number of BWT equal-letter runs: bwt_r = ", bwt_r);
         log("Length of complete BWT: n = ", this->n);
         log("Rate n/r = ", double(this->n) / this->r);
         log("log2(r) = ", log2(double(this->r)));
@@ -317,10 +319,15 @@ public:
     void mem_stats()
     {
         log("Memory (bytes):");
-        log("   Col BWT: ", this->r + 4*this->r*BWT_BYTES + ID_BYTES);
-        log("           Chars: ", this->r);
-        log("            Ints: ", this->r*BWT_BYTES);
-        log("             IDs: ", this->r*ID_BYTES);
+        log("   Col BWT: ", bits_to_bytes(this->r*ALPHABET_BITS + 3*this->r*BWT_BITS + this->r*ID_BITS));
+        log("           Chars: ", bits_to_bytes(this->r*ALPHABET_BITS));
+        log("            Ints: ", bits_to_bytes(this->r*BWT_BITS));
+        log("             IDs: ", bits_to_bytes(this->r*ID_BITS));
+    }
+
+    std::string get_file_extension() const
+    {
+        return ".col_bwt";
     }
 
     /* serialize to the ostream
@@ -397,33 +404,33 @@ public:
     void mem_stats()
     {
         log("Memory (bytes):");
-        log("   Col BWT: ", this->r + 5*this->r*BWT_BYTES + ID_BYTES);
-        log("           Chars: ", this->r);
-        log("            Ints: ", this->r*BWT_BYTES);
-        log("             IDs: ", this->r*ID_BYTES);
-        log("            Thrs: ", this->r*BWT_BYTES);
+        log("   Col BWT: ", bits_to_bytes(this->r*ALPHABET_BITS + 4*this->r*BWT_BITS + this->r*ID_BITS));
+        log("           Chars: ", bits_to_bytes(this->r*ALPHABET_BITS));
+        log("            Ints: ", bits_to_bytes(this->r*BWT_BITS));
+        log("             IDs: ", bits_to_bytes(this->r*ID_BITS));
+    }
+
+    std::string get_file_extension() const
+    {
+        return ".col_pml";
     }
 
 protected:
     void read_thresholds(std::ifstream &thresholds)
     {
+        status("Reading thresholds");
         thresholds.clear();
         thresholds.seekg(0);
 
         size_t threshold = 0;
+        size_t i = 0;
         while (thresholds.read((char *)&threshold, RW_BYTES))
         {
-            this->LF_runs[threshold].threshold = threshold;
+            this->LF_runs[i++].threshold = threshold;
         }
+        assert(i == this->bwt_r);
+        status();
     }
-
-    // typedef struct {
-    //     ulint interval;
-    //     ulint offset;
-    //     ulint length;
-    //     ulint pos;
-    //     ulint col_id;
-    // };
 
     // Returns vectors of PML lengths and column ids
     std::pair<vector<ulint>, vector<ulint>> _query_pml(const char *pattern, const size_t m)
@@ -439,14 +446,22 @@ protected:
     }
 
     // Writes to file in reverse
-    std::pair<vector<ulint>, vector<ulint>> _query_pml(const char *pattern, const size_t m, std::ofstream &lens_rev, std::ofstream &col_ids_rev) 
+    void _query_pml(const char *pattern, const size_t m, std::ofstream &lens_rev, std::ofstream &col_ids_rev) 
     {
+        lens_rev.clear();
+        lens_rev.seekp(0);
+        col_ids_rev.clear();
+        col_ids_rev.seekp(0);
+
         auto store_to_file = [&](const ulint length, const ulint col_id, const ulint idx) {
-            lens_rev << ((idx != 0) ? "," : "") << length;
-            col_ids_rev << ((idx != 0) ? "," : "") << col_id;
+            lens_rev << ((idx != m - 1) ? "," : "") << length;
+            col_ids_rev << ((idx != m - 1) ? "," : "") << col_id;
         };
 
         _query_pml(pattern, m, store_to_file);
+
+        lens_rev.close();
+        col_ids_rev.close();
     }
 
     void _query_pml(const char *pattern, const size_t m, std::function<void(const ulint, const ulint, const ulint)> store_stats)
@@ -454,7 +469,7 @@ protected:
         std::vector<ulint> pml_lengths(m);
         std::vector<ulint> col_stats(m);
 
-        ulint pos =this->n - 1;
+        ulint pos = this->n - 1;
         ulint interval = r - 1;
         ulint offset = get_length(interval) - 1;
 
@@ -464,13 +479,13 @@ protected:
         for (size_t i = 0; i < m; ++i)
         {
             uchar c = pattern[m - i - 1];
-            col_id = LF_runs[pos].col_id;
+            col_id = LF_runs[interval].col_id;
 
             // Case 1: c is the same as the current character, extend match
             if (get_char(interval) == c) {
                 ++length;
             }
-            // Case 2: c is not the same as the current character, reset PML to 0
+            // Case 2: mismatch, reset PML to 0 and use thresholds to reorient in BWT
             else {
                 length = 0;
                 threshold_step(interval, offset, pos, c);
@@ -486,7 +501,7 @@ protected:
     {
         ulint new_interval = interval;
         ulint new_offset = offset;
-        ulint thr =this->n;
+        ulint thr = this->n;
 
         #ifdef MULTI_THREAD
         std::optional<std::pair<ulint, ulint>> pred_result, succ_result;
@@ -499,11 +514,11 @@ protected:
         pred_thread.join();
         succ_thread.join();
         #else
-        auto succ_result = succ_char(interval, c);
+        std::optional<std::pair<ulint, ulint>> succ_result = succ_char(interval, c);
         #endif
 
         // Has successor, get threshold
-        if (succ_result) {
+        if (succ_result.has_value()) {
             auto [succ_interval, succ_offset] = succ_result.value();
             thr = LF_runs[succ_interval].threshold;
             new_interval = succ_interval;
@@ -513,10 +528,10 @@ protected:
         // Predecessor is better match, or no successor
         if (pos < thr) {
             #ifndef MULTI_THREAD
-            auto pred_result = pred_char(interval, c);
+            std::optional<std::pair<ulint, ulint>> pred_result = pred_char(interval, c);
             #endif
 
-            if (pred_result) {
+            if (pred_result.has_value()) {
                 auto[pred_interval, pred_offset] = pred_result.value();
                 new_interval = pred_interval;
                 new_offset = pred_offset;

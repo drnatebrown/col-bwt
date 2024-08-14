@@ -69,16 +69,35 @@ int main(int argc, char *const argv[])
 
     timer.mid();
     message("Computing PMLs Query: ");
+    log("Pattern length: ", pattern.size());
+    log("Pattern: ", (pattern.size() > 100 ? pattern.substr(0, 100) + "..." : pattern));
 
     std::string pml_filename = args.pattern_filename + ".pml";
     std::string cid_filename = args.pattern_filename + ".cid";
-    std::ofstream fs_pml(pml_filename);
-    std::ofstream fs_cid(cid_filename);
+    std::string rev_pml_filename = pml_filename + ".rev";
+    std::string rev_cid_filename = cid_filename + ".rev";
+    std::ofstream fs_pml(rev_pml_filename);
+    std::ofstream fs_cid(rev_cid_filename);
     tbl.query_pml(pattern, fs_pml, fs_cid);
+
+    log("PMLs/CIDs written in reverse, using 'rev' to output final values");
+    auto reverse_file = [](const std::string &filename) {
+        std::string rev_filename = filename + ".rev";
+        // std::string cmd = "tac " + rev_filename + " > " + filename + " && rm " + rev_filename;
+        std::string cmd = "rev " + rev_filename + " > " + filename;
+        log("Command: ", cmd);
+        if(system(cmd.c_str()) != 0) {
+            error("Failed to reverse file: " + rev_filename);
+        }
+    };
+    reverse_file(pml_filename);
+    reverse_file(cid_filename);
 
     timer.end();
     submessage("Query Complete");
     timer.midTime();
+    submessage("PMLs written to: " + pml_filename);
+    submessage("CIDs written to: " + cid_filename);
 
     message("Done", false);
     mem_peak();
