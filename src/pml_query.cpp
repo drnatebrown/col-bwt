@@ -83,8 +83,7 @@ int main(int argc, char *const argv[])
     log("PMLs/CIDs written in reverse, using 'rev' to output final values");
     auto reverse_file = [](const std::string &filename) {
         std::string rev_filename = filename + ".rev";
-        // std::string cmd = "tac " + rev_filename + " > " + filename + " && rm " + rev_filename;
-        std::string cmd = "rev " + rev_filename + " > " + filename;
+        std::string cmd = "rev " + rev_filename + " > " + filename + " && rm " + rev_filename;
         log("Command: ", cmd);
         if(system(cmd.c_str()) != 0) {
             error("Failed to reverse file: " + rev_filename);
