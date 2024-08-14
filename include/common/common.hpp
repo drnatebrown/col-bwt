@@ -45,13 +45,14 @@
 #define BWT_BYTES 5
 #define ID_BITS 40
 // #define PRINT_STATS
+#define MULTI_THREAD
 #define DNA_ALPHABET
 
 #ifdef DNA_ALPHABET
 #define ALPHABET_SIZE 6
 #define ALPHABET_BITS 3
 #else
-#define ALALPHABET_SIZE 256
+#define ALPHABET_SIZE 256
 #define ALPHABET_BITS 8
 #endif
 
@@ -182,6 +183,7 @@ private:
 struct Args
 {
     std::string filename = "";
+    std::string pattern_filename = "";
     bool rle = true; // read in RLBWT
     bool verb = false; // verbose output
     int N = 0; // size of collection
@@ -194,7 +196,7 @@ void parseArgs(int argc, char *const argv[], Args &arg)
     extern int optind;
 
     std::string sarg;
-    while ((c = getopt(argc, argv, "rvN:")) != -1)
+    while ((c = getopt(argc, argv, "rvN:p:")) != -1)
     {
         switch (c)
         {
@@ -208,6 +210,9 @@ void parseArgs(int argc, char *const argv[], Args &arg)
         case 'N':
             sarg.assign(optarg);
             arg.N = std::stoi(sarg);
+            break;
+        case 'p':
+            arg.pattern_filename.assign(optarg);
             break;
         case '?':
             std::cout << "ERROR: Unknown option.\n";
@@ -224,7 +229,6 @@ void parseArgs(int argc, char *const argv[], Args &arg)
         error("Invalid number of arguments");
     }
 }
-
 //********** end argument options ********************
 
 // Convert boolean vector to specified bit vector

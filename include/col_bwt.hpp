@@ -25,7 +25,9 @@
 #include "common/common.hpp"
 
 #include <common.hpp>
+#include <thread>
 #include <iostream>
+#include <functional>
 #include <sdsl/structure_tree.hpp>
 #include <sdsl/util.hpp>
 #include <sdsl/sd_vector.hpp>
@@ -38,6 +40,11 @@ class col_row : public LF_row
 {
 public:
     ulint col_id : ID_BITS;
+
+    col_row() {}
+
+    col_row(ulint c, ulint i, ulint l, ulint o, ulint id)
+        : LF_row(c, i, l, o), col_id(id) {}
 
     size_t serialize(std::ostream &out, sdsl::structure_tree_node *v = nullptr, std::string name ="")
     {
@@ -63,7 +70,47 @@ public:
     }
 };
 
-class col_bwt : public LF_table<col_row>
+// Row of the LF table using thresholds
+class col_thr : public col_row
+{
+public:
+    ulint threshold : BWT_BYTES;
+
+    col_thr() {}
+
+    col_thr(ulint c, ulint i, ulint l, ulint o, ulint id, ulint t)
+        : col_row(c, i, l, o, id), threshold(t) {}
+
+    col_thr(ulint c, ulint i, ulint l, ulint o, ulint id)
+        : col_row(c, i, l, o, id), threshold() {}
+
+    size_t serialize(std::ostream &out, sdsl::structure_tree_node *v = nullptr, std::string name ="")
+    {
+        sdsl::structure_tree_node *child = sdsl::structure_tree::add_child(v, name, sdsl::util::class_name(*this));
+        size_t written_bytes = 0;
+
+        size_t temp = threshold;
+        out.write((char *)&temp, BWT_BYTES);
+        written_bytes += BWT_BYTES;
+
+        col_row::serialize(out, child, "LF_row");
+
+        return written_bytes;
+    }
+
+    void load(std::istream &in)
+    {
+        size_t temp;
+        in.read((char *)&temp, BWT_BYTES);
+        threshold = temp;
+
+        col_row::load(in);
+    }
+};
+
+// Must use col_row or an inherited class of col_row
+template <class row_t = col_row>
+class col_bwt : public LF_table<row_t>
 {
 public:
     col_bwt() {}
@@ -77,7 +124,7 @@ public:
         col_ids.clear();
         col_ids.seekg(0);
         
-        LF_runs = vector<col_row>();
+        this->LF_runs = vector<row_t>();
         vector<vector<size_t>> L_block_indices = vector<vector<size_t>>(ALPHABET_SIZE);
         
         size_t s_set_bits = 0;
@@ -97,9 +144,9 @@ public:
         status("Constructing Col BWT table");
         char c;
         size_t i = 0;
-        r = 0;
+        this->r = 0;
         bwt_r = 0;
-        n = 0;
+        this->n = 0;
         size_t s = 0;
         size_t s_curr = s_select(s + 1);
         while ((c = heads.get()) != EOF)
@@ -108,18 +155,18 @@ public:
             lengths.read((char *)&length, RW_BYTES);
             if (c <= TERMINATOR) c = TERMINATOR;
 
-            while (s < s_set_bits && s_curr < n + length)
+            while (s < s_set_bits && s_curr < this->n + length)
             {
                 size_t curr_id = 0;
                 L_block_indices[c].push_back(i++);
 
                 // If the split corresponds to an existing run-head, write the run with no-id first
-                if (s_curr > n) {
-                    LF_runs.push_back({c, n, 0, 0, curr_id});
+                if (s_curr >this->n) {
+                    this->LF_runs.push_back(row_t(c, this->n, 0, 0, curr_id));
                     col_ids.read((char *)&curr_id, ID_BYTES);
 
-                    ulint delta = s_curr - n;
-                    n += delta;
+                    ulint delta = s_curr -this->n;
+                    this->n += delta;
                     length -= delta;
                     ++s;
                     s_curr = (s < s_set_bits) ? s_select(s + 1) : 0;
@@ -127,19 +174,19 @@ public:
                 // otherwise the split corresponds to this run, fetch its id first
                 else {
                     col_ids.read((char *)&curr_id, ID_BYTES);
-                    LF_runs.push_back({c, n, 0, 0, curr_id});
+                    this->LF_runs.push_back(row_t(c,this->n, 0, 0, curr_id));
 
                     ++s;
                     s_curr = (s < s_set_bits) ? s_select(s + 1) : 0;
                     // The length of this run is determined by the next split
-                    if (s < s_set_bits && s_curr < n + length) {
-                        ulint delta = s_curr - n;
-                        n += delta;
+                    if (s < s_set_bits && s_curr <this->n + length) {
+                        ulint delta = s_curr -this->n;
+                        this->n += delta;
                         length -= delta;
                     }
                     // Else its the rest of this run
                     else {
-                        n += length;
+                        this->n += length;
                         length = 0;
                     }
                 }
@@ -147,18 +194,18 @@ public:
 
             // Regular BWT run
             if (length > 0) {
-                LF_runs.push_back({c, n, 0, 0, 0});
+                this->LF_runs.push_back(row_t(c,this->n, 0, 0, 0));
                 L_block_indices[c].push_back(i++);
-                n+=length;
+               this->n+=length;
             }
 
             ++bwt_r;
         }
-        r = LF_runs.size();
+        this->r = this->LF_runs.size();
         status();
 
         status("Computing values of Col BWT table");
-        compute_table(L_block_indices);
+        this->compute_table(L_block_indices);
         status();
 
         #ifdef PRINT_STATS
@@ -174,7 +221,7 @@ public:
         col_ids.clear();
         col_ids.seekg(0);
         
-        LF_runs = vector<col_row>();
+        this->LF_runs = vector<row_t>();
         vector<vector<size_t>> L_block_indices = vector<vector<size_t>>(ALPHABET_SIZE);
 
         size_t s_set_bits = 0;
@@ -195,9 +242,9 @@ public:
         char c;
         size_t length = 0;
         size_t i = 0;
-        r = 0;
+        this->r = 0;
         bwt_r = 1;
-        n = 0;
+        this->n = 0;
         size_t s = 0;
         size_t s_curr = s_select(s + 1);
         size_t curr_id = 0;
@@ -207,10 +254,10 @@ public:
             
             if (i != 0 && (c != last_c || i == s_curr))
             {
-                LF_runs.push_back({last_c, n, 0, 0, curr_id});
+                this->LF_runs.push_back(row_t(last_c,this->n, 0, 0, curr_id));
                 L_block_indices[last_c].push_back(i++);
 
-                n+=length;
+               this->n+=length;
                 length = 0;
                 
                 if (i == s_curr) {
@@ -230,15 +277,15 @@ public:
             last_c = c;
         }
         // Step for final character
-        LF_runs.push_back({last_c, length, 0, 0, curr_id});
+        this->LF_runs.push_back(row_t(last_c, length, 0, 0, curr_id));
         L_block_indices[last_c].push_back(i++);  
-        n+=length;
+        this->n += length;
 
-        r = LF_runs.size();
+        this->r = this->LF_runs.size();
         status();
 
         status("Computing values of Col BWT table");
-        compute_table(L_block_indices);
+        this->compute_table(L_block_indices);
         status();
 
         #ifdef PRINT_STATS
@@ -259,21 +306,21 @@ public:
 
     void bwt_stats()
     {
-        log("Number of Col equal-letter runs: r = ", r);
+        log("Number of Col equal-letter runs: r = ", this->r);
         log("Number of BWT equal-letter runs: r = ", bwt_r);
-        log("Length of complete BWT: n = ", n);
-        log("Rate n/r = ", double(n) / r);
-        log("log2(r) = ", log2(double(r)));
-        log("log2(n/r) = ", log2(double(n) / r));
+        log("Length of complete BWT: n = ", this->n);
+        log("Rate n/r = ", double(this->n) / this->r);
+        log("log2(r) = ", log2(double(this->r)));
+        log("log2(n/r) = ", log2(double(this->n) / this->r));
     }
 
     void mem_stats()
     {
         log("Memory (bytes):");
-        log("   Col BWT: ", r + 4*r*BWT_BYTES + ID_BYTES);
-        log("           Chars: ", r);
-        log("            Ints: ", r*BWT_BYTES);
-        log("             IDs: ", r*ID_BYTES);
+        log("   Col BWT: ", this->r + 4*this->r*BWT_BYTES + ID_BYTES);
+        log("           Chars: ", this->r);
+        log("            Ints: ", this->r*BWT_BYTES);
+        log("             IDs: ", this->r*ID_BYTES);
     }
 
     /* serialize to the ostream
@@ -287,7 +334,7 @@ public:
         out.write((char *)&bwt_r, sizeof(bwt_r));
         written_bytes += sizeof(bwt_r);
 
-        written_bytes += LF_table::serialize(out);
+        written_bytes += LF_table<row_t>::serialize(out, child, "LF_table");
 
         return written_bytes;
     }
@@ -301,11 +348,183 @@ public:
 
         in.read((char *)&bwt_r, sizeof(bwt_r));
 
-        LF_table::load(in);
+        LF_table<row_t>::load(in);
     }
 
 protected:
     ulint bwt_r;
 };
 
+class col_pml : public col_bwt<col_thr>
+{
+public:
+    col_pml() {}
+
+    col_pml(std::ifstream &heads, std::ifstream &lengths, std::ifstream &col_ids, std::ifstream &thresholds, sdsl::sd_vector<> splits)
+        : col_bwt<col_thr>(heads, lengths, col_ids, splits)
+    {
+        read_thresholds(thresholds);
+    }
+
+    col_pml(std::ifstream &bwt, std::ifstream &col_ids, std::ifstream &thresholds, sdsl::sd_vector<> splits)
+        : col_bwt<col_thr>(bwt, col_ids, splits)
+    {
+        read_thresholds(thresholds);
+    }
+
+    std::pair<std::vector<ulint>, std::vector<ulint>> query_pml(const std::string &pattern)
+    {
+        size_t m = pattern.size();
+        return _query_pml(pattern.data(), m);
+    }
+
+    std::pair<std::vector<ulint>, std::vector<ulint>> query_pml(const char *pattern, const size_t m)
+    {
+        return _query_pml(pattern, m);
+    }
+
+    void query_pml(const std::string &pattern, std::ofstream &lens_rev, std::ofstream &col_ids_rev)
+    {
+        size_t m = pattern.size();
+        _query_pml(pattern.data(), m, lens_rev, col_ids_rev);
+    }
+
+    void query_pml(const char *pattern, const size_t m, std::ofstream &lens_rev, std::ofstream &col_ids_rev)
+    {
+        _query_pml(pattern, m, lens_rev, col_ids_rev);
+    }
+
+    void mem_stats()
+    {
+        log("Memory (bytes):");
+        log("   Col BWT: ", this->r + 5*this->r*BWT_BYTES + ID_BYTES);
+        log("           Chars: ", this->r);
+        log("            Ints: ", this->r*BWT_BYTES);
+        log("             IDs: ", this->r*ID_BYTES);
+        log("            Thrs: ", this->r*BWT_BYTES);
+    }
+
+protected:
+    void read_thresholds(std::ifstream &thresholds)
+    {
+        thresholds.clear();
+        thresholds.seekg(0);
+
+        size_t threshold = 0;
+        while (thresholds.read((char *)&threshold, RW_BYTES))
+        {
+            this->LF_runs[threshold].threshold = threshold;
+        }
+    }
+
+    // typedef struct {
+    //     ulint interval;
+    //     ulint offset;
+    //     ulint length;
+    //     ulint pos;
+    //     ulint col_id;
+    // };
+
+    // Returns vectors of PML lengths and column ids
+    std::pair<vector<ulint>, vector<ulint>> _query_pml(const char *pattern, const size_t m)
+    {
+        std::vector<ulint> pml_lengths(m);
+        std::vector<ulint> col_stats(m);
+        auto store_to_vector = [&](const ulint length, const ulint col_id, const ulint idx) {
+            pml_lengths[idx] = length;
+            col_stats[idx] = col_id;
+        };
+
+        _query_pml(pattern, m, store_to_vector);
+    }
+
+    // Writes to file in reverse
+    std::pair<vector<ulint>, vector<ulint>> _query_pml(const char *pattern, const size_t m, std::ofstream &lens_rev, std::ofstream &col_ids_rev) 
+    {
+        auto store_to_file = [&](const ulint length, const ulint col_id, const ulint idx) {
+            lens_rev << ((idx != 0) ? "," : "") << length;
+            col_ids_rev << ((idx != 0) ? "," : "") << col_id;
+        };
+
+        _query_pml(pattern, m, store_to_file);
+    }
+
+    void _query_pml(const char *pattern, const size_t m, std::function<void(const ulint, const ulint, const ulint)> store_stats)
+    {
+        std::vector<ulint> pml_lengths(m);
+        std::vector<ulint> col_stats(m);
+
+        ulint pos =this->n - 1;
+        ulint interval = r - 1;
+        ulint offset = get_length(interval) - 1;
+
+        ulint length = 0;
+        ulint col_id = 0;
+
+        for (size_t i = 0; i < m; ++i)
+        {
+            uchar c = pattern[m - i - 1];
+            col_id = LF_runs[pos].col_id;
+
+            // Case 1: c is the same as the current character, extend match
+            if (get_char(interval) == c) {
+                ++length;
+            }
+            // Case 2: c is not the same as the current character, reset PML to 0
+            else {
+                length = 0;
+                threshold_step(interval, offset, pos, c);
+            }
+
+            store_stats(length, col_id, m - i - 1);
+
+            std::tie(interval, offset, pos) = LF_idx(interval, offset); // Next step
+        }
+    }
+
+    void threshold_step(ulint &interval, ulint &offset, const ulint pos, const uchar c)
+    {
+        ulint new_interval = interval;
+        ulint new_offset = offset;
+        ulint thr =this->n;
+
+        #ifdef MULTI_THREAD
+        std::optional<std::pair<ulint, ulint>> pred_result, succ_result;
+        std::thread pred_thread([&]() {
+            pred_result = pred_char(interval, c);
+        });
+        std::thread succ_thread([&]() {
+            succ_result = succ_char(interval, c);
+        });
+        pred_thread.join();
+        succ_thread.join();
+        #else
+        auto succ_result = succ_char(interval, c);
+        #endif
+
+        // Has successor, get threshold
+        if (succ_result) {
+            auto [succ_interval, succ_offset] = succ_result.value();
+            thr = LF_runs[succ_interval].threshold;
+            new_interval = succ_interval;
+            new_offset = succ_offset;
+        }
+
+        // Predecessor is better match, or no successor
+        if (pos < thr) {
+            #ifndef MULTI_THREAD
+            auto pred_result = pred_char(interval, c);
+            #endif
+
+            if (pred_result) {
+                auto[pred_interval, pred_offset] = pred_result.value();
+                new_interval = pred_interval;
+                new_offset = pred_offset;
+            }
+        }
+        
+        interval = new_interval;
+        offset = new_offset;
+    }
+};
 #endif /* end of include guard: _COL_BWT_HH */

@@ -38,6 +38,8 @@ int main(int argc, char *const argv[])
     std::ifstream ifs_col_ids(col_ids_fname);
     std::string col_runs_fname = args.filename + ".col_runs";
     std::ifstream ifs_col_runs(col_runs_fname);
+    std::string thr_fname = args.filename + ".thr";
+    std::ifstream ifs_thr(thr_fname);
 
     ifs_col_runs.seekg(0);
     sdsl::sd_vector<> col_runs;
@@ -53,7 +55,8 @@ int main(int argc, char *const argv[])
     ifs_heads.seekg(0);
     ifs_len.seekg(0);
     ifs_col_ids.seekg(0);
-    col_bwt col_bwt(ifs_heads, ifs_len, ifs_col_ids, col_runs);
+    // col_bwt col_bwt(ifs_heads, ifs_len, ifs_col_ids, col_runs);
+    col_pml col_bwt(ifs_heads, ifs_len, ifs_col_ids, ifs_thr, col_runs);
     timer.end();
 
     col_bwt.bwt_stats();
@@ -71,7 +74,6 @@ int main(int argc, char *const argv[])
     out_fp.close();
 
     timer.end();
-
     submessage("Serializing Complete");
     timer.midTime();
 

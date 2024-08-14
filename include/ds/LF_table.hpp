@@ -36,6 +36,11 @@ public:
     ulint interval : BWT_BITS;
     ulint offset : BWT_BITS;
 
+    LF_row() {}
+
+    LF_row(char c, ulint i, ulint l, ulint o)
+        : character(c), idx(i), interval(l), offset(o) {}
+
     size_t serialize(std::ostream &out, sdsl::structure_tree_node *v = nullptr, std::string name ="")
     {
         sdsl::structure_tree_node *child = sdsl::structure_tree::add_child(v, name, sdsl::util::class_name(*this));
@@ -77,7 +82,7 @@ public:
     }
 };
 
-template <typename T = LF_row>
+template <typename row_t = LF_row>
 class LF_table
 {
 public:
@@ -90,7 +95,7 @@ public:
         lengths.clear();
         lengths.seekg(0);
         
-        LF_runs = vector<LF_row>();
+        LF_runs = vector<row_t>();
         vector<vector<size_t>> L_block_indices = vector<vector<size_t>>(ALPHABET_SIZE);
         
         status("Constructing BWT table (LF)");
@@ -129,7 +134,7 @@ public:
         bwt.clear();
         bwt.seekg(0);
         
-        LF_runs = vector<LF_row>();
+        LF_runs = vector<row_t>();
         vector<vector<size_t>> L_block_indices = vector<vector<size_t>>(ALPHABET_SIZE);
         
         status("Constructing BWT table");
@@ -174,7 +179,7 @@ public:
         #endif
     }
 
-    const LF_row get(size_t i)
+    const row_t get(size_t i)
     {
         assert(i < LF_runs.size());
         return LF_runs[i];
@@ -197,12 +202,17 @@ public:
     // TODO specilization for template with lengths, not idx
     ulint get_length(ulint i)
     {
-        return (i == r - 1) ? n : (get_idx(i + 1) - get_idx(i));
+        return (i == r - 1) ? (n - get_idx(i)) : (get_idx(i + 1) - get_idx(i));
     }
 
     ulint get_idx(ulint i)
     {
         return get(i).idx;
+    }
+
+    ulint to_idx(ulint interval, ulint offset)
+    {
+        return get_idx(interval) + offset;
     }
 
     ulint size()
@@ -250,28 +260,36 @@ public:
         return std::make_pair(next_interval, next_offset);
     }
 
-    std::pair<ulint, ulint> preceding(ulint run, uchar c)
+    std::tuple<ulint, ulint, ulint> LF_idx(ulint run, ulint offset)
+    {
+        auto [next_interval, next_offset] = LF(run, offset);
+        return std::make_tuple(next_interval, next_offset, to_idx(next_interval, next_offset));
+    }
+
+    /* Returns row of largest idx before or at position run with character c */
+    std::optional<std::pair<ulint, ulint>> pred_char(ulint run, uchar c)
     {
         #ifdef DNA_ALPHABET
         c = charToBits[c];
         #endif
         while (get_char_bits(run) != c) 
         {
-            if (run == 0) return std::make_pair(0, 0);
+            if (run == 0) return std::nullopt;
             run = LF_runs[run--].interval;
         }
 
         return std::make_pair(run, get_length(run) - 1);
     }
 
-    std::pair<ulint, ulint> successor(ulint run, uchar c)
+    /* Returns row of smallest idx after or at position run with character c */
+    std::optional<std::pair<ulint, ulint>> succ_char(ulint run, uchar c)
     {
         #ifdef DNA_ALPHABET
         c = charToBits[c];
         #endif
         while (get_char_bits(run) != c)  
         {
-            if (run == r - 1) return std::make_pair(r - 1, 0);
+            if (run == r - 1) return std::nullopt;
             run = LF_runs[run++].interval;
         }
 
@@ -337,7 +355,7 @@ public:
         in.read((char *)&r, sizeof(r));
 
         in.read((char *)&size, sizeof(size));
-        LF_runs = std::vector<T>(size);
+        LF_runs = std::vector<row_t>(size);
         for(size_t i = 0; i < size; ++i)
         {
             LF_runs[i].load(in);
@@ -348,7 +366,7 @@ protected:
     ulint n; // Length of BWT
     ulint r; // Runs of BWT
 
-    vector<T> LF_runs;
+    vector<row_t> LF_runs;
 
     void compute_table(vector<vector<ulint>> L_block_indices) {\
         ulint curr_L_num = 0;

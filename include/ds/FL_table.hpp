@@ -234,7 +234,7 @@ public:
 
     ulint get_length(ulint i)
     {
-        return (i == r - 1) ? n : (get_idx(i + 1) - get_idx(i));
+        return (i == r - 1) ? (n - get_idx(i)) : (get_idx(i + 1) - get_idx(i));
     }
 
     ulint get_idx(ulint i)
