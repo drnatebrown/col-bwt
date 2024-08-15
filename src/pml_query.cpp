@@ -129,49 +129,6 @@ int main(int argc, char *const argv[])
         pml_to_vec(args.pattern_filename, pml_filename, cid_filename, tbl);
     }
 
-    // message("Reading pattern file: ");
-
-    // std::ifstream fs_pattern(args.pattern_filename);
-    // std::string pattern;
-    // std::string line;
-    // std::ostringstream sequence_stream;
-    // while (std::getline(fs_pattern, line))
-    // {
-    //     if (line.empty() || line[0] == '>')
-    //         continue;
-    //     sequence_stream << line;
-    // }
-    // pattern = sequence_stream.str();
-
-    // timer.end();
-    // submessage("Read Complete");
-    // timer.midTime();
-
-    // timer.mid();
-    // message("Computing PMLs Query: ");
-    // log("Pattern length: ", pattern.size());
-    // log("Pattern: ", (pattern.size() > 100 ? pattern.substr(0, 100) + "..." : pattern));
-
-    // std::string pml_filename = args.pattern_filename + ".pml";
-    // std::string cid_filename = args.pattern_filename + ".cid";
-    // std::string rev_pml_filename = pml_filename + ".rev";
-    // std::string rev_cid_filename = cid_filename + ".rev";
-    // std::ofstream fs_pml(rev_pml_filename);
-    // std::ofstream fs_cid(rev_cid_filename);
-    // tbl.query_pml(pattern, fs_pml, fs_cid);
-
-    // log("PMLs/CIDs written in reverse, using 'rev' to output final values");
-    // auto reverse_file = [](const std::string &filename) {
-    //     std::string rev_filename = filename + ".rev";
-    //     std::string cmd = "rev " + rev_filename + " > " + filename + " && rm " + rev_filename;
-    //     log("Command: ", cmd);
-    //     if(system(cmd.c_str()) != 0) {
-    //         error("Failed to reverse file: " + rev_filename);
-    //     }
-    // };
-    // reverse_file(pml_filename);
-    // reverse_file(cid_filename);
-
     timer.end();
     submessage("Query Complete");
     timer.midTime();
