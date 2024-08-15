@@ -31,14 +31,14 @@ using namespace std;
 class LF_row
 {
 public:
-    char character : ALPHABET_BITS;
+    uchar character : ALPHABET_BITS;
     ulint idx : BWT_BITS;
     ulint interval : BWT_BITS;
     ulint offset : BWT_BITS;
 
     LF_row() {}
 
-    LF_row(char c, ulint i, ulint l, ulint o)
+    LF_row(uchar c, ulint i, ulint l, ulint o)
         : character(c), idx(i), interval(l), offset(o) {}
 
     size_t serialize(std::ostream &out, sdsl::structure_tree_node *v = nullptr, std::string name ="")
@@ -275,7 +275,7 @@ public:
         while (get_char_bits(run) != c) 
         {
             if (run == 0) return std::nullopt;
-            run = LF_runs[run--].interval;
+            --run;
         }
 
         return std::make_pair(run, get_length(run) - 1);
@@ -290,7 +290,7 @@ public:
         while (get_char_bits(run) != c)  
         {
             if (run == r - 1) return std::nullopt;
-            run = LF_runs[run++].interval;
+            ++run;
         }
 
         return std::make_pair(run, 0);

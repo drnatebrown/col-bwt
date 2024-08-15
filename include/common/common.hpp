@@ -258,23 +258,23 @@ ulint bits_to_bytes(const ulint bits){
 #ifdef DNA_ALPHABET
 constexpr std::array<uchar, ASCII_SIZE> initCharToBits() {
     std::array<uchar, ASCII_SIZE> table = {};
-    table['A'] = 0b000;
-    table['C'] = 0b001;
-    table['G'] = 0b010;
-    table['T'] = 0b011;
+    table[TERMINATOR] = 0b000;
+    table['A'] = 0b001;
+    table['C'] = 0b010;
+    table['G'] = 0b011;
     table['N'] = 0b100;
-    table[TERMINATOR] = 0b101;
+    table['T'] = 0b101;
     return table;
 }
 constexpr std::array<uchar, ASCII_SIZE> charToBits = initCharToBits();
 
 constexpr uchar bitsToChar[ALPHABET_SIZE] = {
-    TERMINATOR, // TERMINATOR
+    TERMINATOR, // 000
     'A',  // 001
     'C',  // 010
     'G',  // 011
-    'T',  // 100
-    'N'   // 101
+    'N',   // 100
+    'T'  // 101
 };
 #endif
 

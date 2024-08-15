@@ -43,7 +43,7 @@ public:
 
     col_row() {}
 
-    col_row(ulint c, ulint i, ulint l, ulint o, ulint id)
+    col_row(uchar c, ulint i, ulint l, ulint o, ulint id)
         : LF_row(c, i, l, o), col_id(id) {}
 
     size_t serialize(std::ostream &out, sdsl::structure_tree_node *v = nullptr, std::string name ="")
@@ -74,14 +74,14 @@ public:
 class col_thr : public col_row
 {
 public:
-    ulint threshold : BWT_BYTES;
+    ulint threshold : BWT_BITS;
 
     col_thr() {}
 
-    col_thr(ulint c, ulint i, ulint l, ulint o, ulint id, ulint t)
+    col_thr(uchar c, ulint i, ulint l, ulint o, ulint id, ulint t)
         : col_row(c, i, l, o, id), threshold(t) {}
 
-    col_thr(ulint c, ulint i, ulint l, ulint o, ulint id)
+    col_thr(uchar c, ulint i, ulint l, ulint o, ulint id)
         : col_row(c, i, l, o, id), threshold() {}
 
     size_t serialize(std::ostream &out, sdsl::structure_tree_node *v = nullptr, std::string name ="")
@@ -199,7 +199,7 @@ public:
             if (length > 0) {
                 this->LF_runs.push_back(row_t(c,this->n, 0, 0, 0));
                 L_block_indices[c].push_back(i++);
-               this->n+=length;
+                this->n+=length;
             }
 
             ++bwt_r;
@@ -261,10 +261,10 @@ public:
             
             if (i != 0 && (c != last_c || i == s_curr))
             {
-                this->LF_runs.push_back(row_t(last_c,this->n, 0, 0, curr_id));
+                this->LF_runs.push_back(row_t(last_c, this->n, 0, 0, curr_id));
                 L_block_indices[last_c].push_back(i++);
 
-               this->n+=length;
+                this->n+=length;
                 length = 0;
                 
                 if (i == s_curr) {
@@ -426,7 +426,10 @@ protected:
         size_t i = 0;
         while (thresholds.read((char *)&threshold, RW_BYTES))
         {
-            this->LF_runs[i++].threshold = threshold;
+            uchar last = get_char(i);
+            do {
+                this->LF_runs[i++].threshold = threshold;
+            } while (i < this->r && get_char(i) == last);
         }
         assert(i == this->bwt_r);
         status();
@@ -453,12 +456,16 @@ protected:
         col_ids_rev.clear();
         col_ids_rev.seekp(0);
 
-        auto store_to_file = [&](const ulint length, const ulint col_id, const ulint idx) {
-            lens_rev << ((idx != m - 1) ? "," : "") << length;
-            col_ids_rev << ((idx != m - 1) ? "," : "") << col_id;
+        auto store_to_file_rev = [&](const ulint length, const ulint col_id, const ulint idx) {
+            std::string len_str = std::to_string(length);
+            std::string col_id_str = std::to_string(col_id);
+            std::reverse(len_str.begin(), len_str.end());
+            std::reverse(col_id_str.begin(), col_id_str.end());
+            lens_rev << ((idx != m - 1) ? "," : "") << len_str;
+            col_ids_rev << ((idx != m - 1) ? "," : "") << col_id_str;
         };
 
-        _query_pml(pattern, m, store_to_file);
+        _query_pml(pattern, m, store_to_file_rev);
 
         lens_rev.close();
         col_ids_rev.close();

@@ -41,7 +41,6 @@ int main(int argc, char *const argv[])
     std::string thr_fname = args.filename + ".thr_pos";
     std::ifstream ifs_thr(thr_fname);
 
-    ifs_col_runs.seekg(0);
     sdsl::sd_vector<> col_runs;
     col_runs.load(ifs_col_runs);
 
