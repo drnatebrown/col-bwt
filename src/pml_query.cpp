@@ -20,7 +20,6 @@
 
 #include <cassert>
 #include <common.hpp>
-#include <test_bwt.hpp>
 #include <col_bwt.hpp>
 #include <cstddef>
 #include <fstream>
