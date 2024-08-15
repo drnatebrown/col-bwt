@@ -446,6 +446,8 @@ protected:
         };
 
         _query_pml(pattern, m, store_to_vector);
+
+        return std::make_pair(pml_lengths, col_stats);
     }
 
     // Writes to file in reverse
@@ -461,8 +463,9 @@ protected:
             std::string col_id_str = std::to_string(col_id);
             std::reverse(len_str.begin(), len_str.end());
             std::reverse(col_id_str.begin(), col_id_str.end());
-            lens_rev << ((idx != m - 1) ? "," : "") << len_str;
-            col_ids_rev << ((idx != m - 1) ? "," : "") << col_id_str;
+
+            lens_rev << " " << len_str;
+            col_ids_rev << " " << col_id_str;
         };
 
         _query_pml(pattern, m, store_to_file_rev);

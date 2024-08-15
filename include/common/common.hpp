@@ -32,6 +32,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
+#include <utility>
 #include <vector>      // std::vector
 #include <assert.h>
 
@@ -186,7 +187,8 @@ struct Args
     std::string filename = "";
     std::string pattern_filename = "";
     bool rle = true; // read in RLBWT
-    bool verb = false; // verbose output
+    bool verbose = false; // verbose output
+    bool long_pattern = false; // write statistics direct to file
     int N = 0; // size of collection
 };
 
@@ -197,7 +199,7 @@ void parseArgs(int argc, char *const argv[], Args &arg)
     extern int optind;
 
     std::string sarg;
-    while ((c = getopt(argc, argv, "rvN:p:")) != -1)
+    while ((c = getopt(argc, argv, "rvlN:p:")) != -1)
     {
         switch (c)
         {
@@ -205,8 +207,11 @@ void parseArgs(int argc, char *const argv[], Args &arg)
             arg.rle = true;
             break;
         case 'v':
-            arg.verb = true;
-            verbose = arg.verb;
+            arg.verbose = true;
+            verbose = arg.verbose;
+            break;
+        case 'l':
+            arg.long_pattern = true;
             break;
         case 'N':
             sarg.assign(optarg);

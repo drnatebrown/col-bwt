@@ -16,6 +16,20 @@ if(NOT sdsl_POPULATED)
     add_subdirectory(${sdsl_SOURCE_DIR} ${sdsl_BINARY_DIR} EXCLUDE_FROM_ALL)
 endif()
 
+## Add klib
+FetchContent_Declare(
+  klib
+  GIT_REPOSITORY https://github.com/drnatebrown/klib
+)
+
+FetchContent_GetProperties(klib)
+if(NOT klib_POPULATED)
+  FetchContent_Populate(klib)
+  add_library(klib INTERFACE)
+
+  target_include_directories(klib INTERFACE ${klib_SOURCE_DIR})
+endif()
+
 ## Add r-index
 FetchContent_Declare(
   r-index

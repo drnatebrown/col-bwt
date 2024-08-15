@@ -22,7 +22,7 @@ target_include_directories(build_col_bwt PUBLIC    "../include/ds"
 target_compile_options(build_col_bwt PUBLIC "-std=c++17")
 
 add_executable(pml_query pml_query.cpp)
-target_link_libraries(pml_query sdsl malloc_count divsufsort divsufsort64 ri pthread)
+target_link_libraries(pml_query sdsl malloc_count divsufsort divsufsort64 ri pthread klib)
 target_include_directories(pml_query PUBLIC    "../include/ds"
                                         "../include"
                                         "../include/common"
