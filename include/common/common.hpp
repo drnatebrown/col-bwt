@@ -293,17 +293,4 @@ constexpr uchar bitsToChar[ALPHABET_SIZE] = {
 };
 #endif
 
-// // Define macros for different compilers
-// #if defined(_MSC_VER)
-//     #define PACKED_STRUCT_BEGIN __pragma(pack(push, 1))
-//     #define PACKED_STRUCT_END __pragma(pack(pop))
-//     #define PACKED
-// #elif defined(__GNUC__) || defined(__clang__)
-//     #define PACKED_STRUCT_BEGIN
-//     #define PACKED_STRUCT_END
-//     #define PACKED __attribute__((packed))
-// #else
-//     #error "Unsupported compiler"
-// #endif
-
 #endif /* end of include guard: _COMMON_HH */
