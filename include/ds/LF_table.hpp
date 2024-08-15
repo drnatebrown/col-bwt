@@ -80,7 +80,7 @@ public:
         in.read((char *)&temp, BWT_BYTES);
         offset = temp;
     }
-};
+} __attribute__((packed));
 
 template <typename row_t = LF_row>
 class LF_table
@@ -336,10 +336,7 @@ public:
         out.write((char *)&size, sizeof(size));
         written_bytes += sizeof(size);
 
-        for(size_t i = 0; i < size; ++i)
-        {
-            written_bytes += LF_runs[i].serialize(out, v, "LF_run_" + std::to_string(i));
-        }
+        written_bytes += write_vec(LF_runs, out);
 
         return written_bytes;
     }
@@ -356,10 +353,7 @@ public:
 
         in.read((char *)&size, sizeof(size));
         LF_runs = std::vector<row_t>(size);
-        for(size_t i = 0; i < size; ++i)
-        {
-            LF_runs[i].load(in);
-        }
+        read_vec(LF_runs, in);
     }
 
 protected:

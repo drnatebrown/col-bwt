@@ -18,13 +18,13 @@
    \date 07/08/2024
 */
 
-#ifndef COL_BWT_HPP
-#define COL_BWT_HPP
+#ifndef TEST_BWT_HPP
+#define TEST_BWT_HPP
 
-#include "LF_table.hpp"
 #include "common/common.hpp"
 
 #include <common.hpp>
+#include <fstream>
 #include <thread>
 #include <iostream>
 #include <functional>
@@ -35,87 +35,148 @@
 
 using namespace std;
 
-// Row of the LF table
-class col_row : public LF_row
-{
-public:
-    ulint col_id : ID_BITS;
-
-    col_row() {}
-
-    col_row(uchar c, ulint i, ulint l, ulint o, ulint id)
-        : LF_row(c, i, l, o), col_id(id) {}
-
-    size_t serialize(std::ostream &out, sdsl::structure_tree_node *v = nullptr, std::string name ="")
-    {
-        sdsl::structure_tree_node *child = sdsl::structure_tree::add_child(v, name, sdsl::util::class_name(*this));
-        size_t written_bytes = 0;
-
-        size_t temp = col_id;
-        out.write((char *)&temp, ID_BYTES);
-        written_bytes += ID_BYTES;
-
-        LF_row::serialize(out, child, "LF_row");
-
-        return written_bytes;
-    }
-
-    void load(std::istream &in)
-    {
-        size_t temp;
-        in.read((char *)&temp, BWT_BYTES);
-        col_id = temp;
-
-        LF_row::load(in);
-    }
-} __attribute__((packed));
-
 // Row of the LF table using thresholds
-class col_thr : public col_row
-{
-public:
+struct __attribute__((packed)) test_row {
+    uchar character : ALPHABET_BITS;
+    ulint idx : BWT_BITS;
+    ulint interval : BWT_BITS;
+    ulint offset : BWT_BITS;
+    ulint col_id : ID_BITS;
     ulint threshold : BWT_BITS;
 
-    col_thr() {}
-
-    col_thr(uchar c, ulint i, ulint l, ulint o, ulint id, ulint t)
-        : col_row(c, i, l, o, id), threshold(t) {}
-
-    col_thr(uchar c, ulint i, ulint l, ulint o, ulint id)
-        : col_row(c, i, l, o, id), threshold() {}
-
     size_t serialize(std::ostream &out, sdsl::structure_tree_node *v = nullptr, std::string name ="")
     {
-        sdsl::structure_tree_node *child = sdsl::structure_tree::add_child(v, name, sdsl::util::class_name(*this));
-        size_t written_bytes = 0;
+        size_t total_size = bits_to_bytes(ALPHABET_BITS + 4*BWT_BITS + ID_BITS);
 
-        size_t temp = threshold;
-        out.write((char *)&temp, BWT_BYTES);
-        written_bytes += BWT_BYTES;
+        // Allocate a byte array
+        char *buffer = new char[total_size];
+        
+        // Copy each member into the byte array
+        size_t cursor = 0;
+        size_t temp = character;
+        memcpy(buffer + cursor, &temp, sizeof(uchar));
+        cursor += sizeof(uchar);
 
-        col_row::serialize(out, child, "LF_row");
+        temp = idx;
+        memcpy(buffer + cursor, &temp, BWT_BYTES);
+        cursor += BWT_BYTES;
 
-        return written_bytes;
+        temp = interval;
+        memcpy(buffer + cursor, &temp, BWT_BYTES);
+        cursor += BWT_BYTES;
+
+        temp = offset;
+        memcpy(buffer + cursor, &temp, BWT_BYTES);
+        cursor += BWT_BYTES;
+
+        temp = col_id;
+        memcpy(buffer + cursor, &temp, ID_BYTES);
+        cursor += ID_BYTES;
+
+        temp = threshold;
+        memcpy(buffer + cursor, &temp, BWT_BYTES);
+
+        // Write the byte array to the output stream
+        out.write(buffer, total_size);
+        
+        // Clean up
+        delete[] buffer;
+        
+        return total_size;
     }
+    
+    // {
+    //     sdsl::structure_tree_node *child = sdsl::structure_tree::add_child(v, name, sdsl::util::class_name(*this));
+    //     size_t written_bytes = 0;
+
+    //     size_t temp = character;
+    //     out.write((char *)&temp, sizeof(char));
+    //     written_bytes += sizeof(char);
+
+    //     temp = idx;
+    //     out.write((char *)&temp, BWT_BYTES);
+    //     written_bytes += BWT_BYTES;
+
+    //     temp = interval;
+    //     out.write((char *)&temp, BWT_BYTES);
+    //     written_bytes += BWT_BYTES;
+
+    //     temp = offset;
+    //     out.write((char *)&temp, BWT_BYTES);
+    //     written_bytes += BWT_BYTES;
+
+    //     temp = col_id;
+    //     out.write((char *)&temp, ID_BYTES);
+    //     written_bytes += ID_BYTES;
+
+    //     temp = threshold;
+    //     out.write((char *)&temp, BWT_BYTES);
+    //     written_bytes += BWT_BYTES;
+
+    //     return written_bytes;
+    // }
 
     void load(std::istream &in)
     {
+        size_t total_size = sizeof(uchar) + 4 * BWT_BYTES + ID_BYTES;
+        char buffer[total_size];
+
+        in.read(buffer, total_size);
+
+        size_t cursor = 0;
         size_t temp;
-        in.read((char *)&temp, BWT_BYTES);
+
+        memcpy(&temp, buffer + cursor, sizeof(uchar));
+        character = temp;
+        cursor += sizeof(uchar);
+
+        memcpy(&temp, buffer + cursor, BWT_BYTES);
+        idx = temp;
+        cursor += BWT_BYTES;
+
+        memcpy(&temp, buffer + cursor, BWT_BYTES);
+        interval = temp;
+        cursor += BWT_BYTES;
+
+        memcpy(&temp, buffer + cursor, BWT_BYTES);
+        offset = temp;
+        cursor += BWT_BYTES;
+
+        memcpy(&temp, buffer + cursor, ID_BYTES);
+        col_id = temp;
+        cursor += ID_BYTES;
+
+        memcpy(&temp, buffer + cursor, BWT_BYTES);
         threshold = temp;
 
-        col_row::load(in);
-    }
-} __attribute__((packed));
+        // size_t temp;
+        // in.read((char *)&temp, sizeof(char));
+        // character = temp;
 
-// Must use col_row or an inherited class of col_row
-template <class row_t = col_row>
-class col_bwt : public LF_table<row_t>
+        // in.read((char *)&temp, BWT_BYTES);
+        // idx = temp;
+
+        // in.read((char *)&temp, BWT_BYTES);
+        // interval = temp;
+
+        // in.read((char *)&temp, BWT_BYTES);
+        // offset = temp;
+
+        // in.read((char *)&temp, ID_BYTES);
+        // col_id = temp;
+
+        // in.read((char *)&temp, BWT_BYTES);
+        // threshold = temp;
+    }
+};
+
+template <class row_t = test_row>
+class test_bwt
 {
 public:
-    col_bwt() {}
+    test_bwt() {}
 
-    col_bwt(std::ifstream &heads, std::ifstream &lengths, std::ifstream &col_ids, sdsl::sd_vector<> splits)
+    test_bwt(std::ifstream &heads, std::ifstream &lengths, std::ifstream &col_ids, std::ifstream &thresholds,sdsl::sd_vector<> splits)
     {
         heads.clear();
         heads.seekg(0);
@@ -123,8 +184,10 @@ public:
         lengths.seekg(0);
         col_ids.clear();
         col_ids.seekg(0);
+        thresholds.clear();
+        thresholds.seekg(0);
         
-        this->LF_runs = vector<row_t>();
+        LF_runs = vector<row_t>();
         vector<vector<size_t>> L_block_indices = vector<vector<size_t>>(ALPHABET_SIZE);
         
         size_t s_set_bits = 0;
@@ -144,32 +207,34 @@ public:
         status("Constructing Col BWT table");
         char c;
         size_t i = 0;
-        this->r = 0;
+        r = 0;
         bwt_r = 0;
-        this->n = 0;
+        n = 0;
         size_t s = 0;
         size_t s_curr = s_select(s + 1);
         while ((c = heads.get()) != EOF)
         {
             size_t length = 0;
             lengths.read((char *)&length, RW_BYTES);
+            size_t threshold = 0;
+            thresholds.read((char *)&threshold, RW_BYTES);
             if (c <= TERMINATOR) c = TERMINATOR;
             #ifdef DNA_ALPHABET
             c = charToBits[c];
             #endif
 
-            while (s < s_set_bits && s_curr < this->n + length)
+            while (s < s_set_bits && s_curr < n + length)
             {
                 size_t curr_id = 0;
                 L_block_indices[c].push_back(i++);
 
                 // If the split corresponds to an existing run-head, write the run with no-id first
-                if (s_curr >this->n) {
-                    this->LF_runs.push_back(row_t(c, this->n, 0, 0, curr_id));
+                if (s_curr >n) {
+                    LF_runs.push_back({c, n, 0, 0, curr_id, threshold});
                     col_ids.read((char *)&curr_id, ID_BYTES);
 
-                    ulint delta = s_curr -this->n;
-                    this->n += delta;
+                    ulint delta = s_curr -n;
+                    n += delta;
                     length -= delta;
                     ++s;
                     s_curr = (s < s_set_bits) ? s_select(s + 1) : 0;
@@ -177,19 +242,19 @@ public:
                 // otherwise the split corresponds to this run, fetch its id first
                 else {
                     col_ids.read((char *)&curr_id, ID_BYTES);
-                    this->LF_runs.push_back(row_t(c,this->n, 0, 0, curr_id));
+                    LF_runs.push_back({c, n, 0, 0, curr_id, threshold});
 
                     ++s;
                     s_curr = (s < s_set_bits) ? s_select(s + 1) : 0;
                     // The length of this run is determined by the next split
-                    if (s < s_set_bits && s_curr <this->n + length) {
-                        ulint delta = s_curr -this->n;
-                        this->n += delta;
+                    if (s < s_set_bits && s_curr <n + length) {
+                        ulint delta = s_curr -n;
+                        n += delta;
                         length -= delta;
                     }
                     // Else its the rest of this run
                     else {
-                        this->n += length;
+                        n += length;
                         length = 0;
                     }
                 }
@@ -197,35 +262,37 @@ public:
 
             // Regular BWT run
             if (length > 0) {
-                this->LF_runs.push_back(row_t(c,this->n, 0, 0, 0));
+                LF_runs.push_back({c, n, 0, 0, 0, threshold});
                 L_block_indices[c].push_back(i++);
-                this->n+=length;
+                n+=length;
             }
 
             ++bwt_r;
         }
-        this->r = this->LF_runs.size();
+        r = LF_runs.size();
         status();
 
         status("Computing values of Col BWT table");
-        this->compute_table(L_block_indices);
+        compute_table(L_block_indices);
         status();
 
         #ifdef PRINT_STATS
-        stat("Col runs", this->runs());
+        stat("Col runs", runs());
         stat("BWT runs", bwt_runs());
-        stat("Text length", this->size());
+        stat("Text length", size());
         #endif
     }
 
-    col_bwt(std::ifstream &bwt, std::ifstream &col_ids, sdsl::sd_vector<> splits)
+    test_bwt(std::ifstream &bwt, std::ifstream &col_ids, std::ifstream &thresholds, sdsl::sd_vector<> splits)
     {
         bwt.clear();
         bwt.seekg(0);
         col_ids.clear();
         col_ids.seekg(0);
+        thresholds.clear();
+        thresholds.seekg(0);
         
-        this->LF_runs = vector<row_t>();
+        LF_runs = vector<row_t>();
         vector<vector<size_t>> L_block_indices = vector<vector<size_t>>(ALPHABET_SIZE);
 
         size_t s_set_bits = 0;
@@ -245,10 +312,11 @@ public:
         char last_c;
         char c;
         size_t length = 0;
+        size_t threshold = 0;
         size_t i = 0;
-        this->r = 0;
+        r = 0;
         bwt_r = 1;
-        this->n = 0;
+        n = 0;
         size_t s = 0;
         size_t s_curr = s_select(s + 1);
         size_t curr_id = 0;
@@ -258,13 +326,18 @@ public:
             #ifdef DNA_ALPHABET
             c = charToBits[c];
             #endif
-            
+
             if (i != 0 && (c != last_c || i == s_curr))
             {
-                this->LF_runs.push_back(row_t(last_c, this->n, 0, 0, curr_id));
+                if (c != last_c) {
+                    ++bwt_r;
+                    thresholds.read((char *)&threshold, RW_BYTES);
+                }
+
+                LF_runs.push_back({last_c, n, 0, 0, curr_id, threshold});
                 L_block_indices[last_c].push_back(i++);
 
-                this->n+=length;
+                n+=length;
                 length = 0;
                 
                 if (i == s_curr) {
@@ -275,24 +348,21 @@ public:
                 else {
                     curr_id = 0;
                 }
-
-                if (c != last_c) {
-                    ++bwt_r;
-                }
             }
             ++length;
             last_c = c;
         }
+        thresholds.read((char *)&threshold, RW_BYTES);
         // Step for final character
-        this->LF_runs.push_back(row_t(last_c, length, 0, 0, curr_id));
+        LF_runs.push_back({last_c, n, 0, 0, curr_id, threshold});
         L_block_indices[last_c].push_back(i++);  
-        this->n += length;
+        n += length;
 
-        this->r = this->LF_runs.size();
+        r = LF_runs.size();
         status();
 
         status("Computing values of Col BWT table");
-        this->compute_table(L_block_indices);
+        compute_table(L_block_indices);
         status();
 
         #ifdef PRINT_STATS
@@ -305,29 +375,145 @@ public:
     {
         return bwt_r;
     }
+    const row_t get(size_t i)
+    {
+        assert(i < LF_runs.size());
+        return LF_runs[i];
+    }
+
+    uchar get_char(ulint i)
+    {
+        #ifdef DNA_ALPHABET
+        return bitsToChar[get(i).character];
+        #else
+        return get(i).character;
+        #endif
+    }
+
+    uchar get_char_bits(ulint i)
+    {
+        return get(i).character;
+    }
+
+    // TODO specilization for template with lengths, not idx
+    ulint get_length(ulint i)
+    {
+        return (i == r - 1) ? (n - get_idx(i)) : (get_idx(i + 1) - get_idx(i));
+    }
+
+    ulint get_idx(ulint i)
+    {
+        return get(i).idx;
+    }
+
+    ulint to_idx(ulint interval, ulint offset)
+    {
+        return get_idx(interval) + offset;
+    }
+
+    ulint size()
+    {
+        return n;
+    }
+
+    ulint runs()
+    {
+        return r;
+    }
+
+    void invert(std::string outfile) 
+    {
+        std::ofstream out(outfile);
+
+        ulint interval = 0;
+        ulint offset = 0;
+
+        uchar c;
+        while((c = get_char(interval)) > TERMINATOR) 
+        {
+            out << c;
+            std::pair<ulint, ulint> pos = LF(interval, offset);
+            interval = pos.first;
+            offset = pos.second;
+        }
+    }
+
+    /*
+     * \param Run position (RLE intervals)
+     * \param Current character offset in block
+     * \return block position and offset of preceding character
+     */
+    std::pair<ulint, ulint> LF(ulint run, ulint offset)
+    {
+        ulint next_interval = LF_runs[run].interval;
+        ulint next_offset = LF_runs[run].offset + offset;
+
+        while (next_offset >= get_length(next_interval)) 
+        {
+            next_offset -= get_length(next_interval++);
+        }
+
+        return std::make_pair(next_interval, next_offset);
+    }
+
+    std::tuple<ulint, ulint, ulint> LF_idx(ulint run, ulint offset)
+    {
+        auto [next_interval, next_offset] = LF(run, offset);
+        return std::make_tuple(next_interval, next_offset, to_idx(next_interval, next_offset));
+    }
+
+    /* Returns row of largest idx before or at position run with character c */
+    std::optional<std::pair<ulint, ulint>> pred_char(ulint run, uchar c)
+    {
+        #ifdef DNA_ALPHABET
+        c = charToBits[c];
+        #endif
+        while (get_char_bits(run) != c) 
+        {
+            if (run == 0) return std::nullopt;
+            --run;
+        }
+
+        return std::make_pair(run, get_length(run) - 1);
+    }
+
+    /* Returns row of smallest idx after or at position run with character c */
+    std::optional<std::pair<ulint, ulint>> succ_char(ulint run, uchar c)
+    {
+        #ifdef DNA_ALPHABET
+        c = charToBits[c];
+        #endif
+        while (get_char_bits(run) != c)  
+        {
+            if (run == r - 1) return std::nullopt;
+            ++run;
+        }
+
+        return std::make_pair(run, 0);
+    }
 
     void bwt_stats()
     {
-        log("Number of Col equal-letter runs: r = ", this->r);
+        log("Number of Col equal-letter runs: r = ", r);
         log("Number of BWT equal-letter runs: bwt_r = ", bwt_r);
-        log("Length of complete BWT: n = ", this->n);
-        log("Rate n/r = ", double(this->n) / this->r);
-        log("log2(r) = ", log2(double(this->r)));
-        log("log2(n/r) = ", log2(double(this->n) / this->r));
+        log("Length of complete BWT: n = ", n);
+        log("Rate n/r = ", double(n) / r);
+        log("log2(r) = ", log2(double(r)));
+        log("log2(n/r) = ", log2(double(n) / r));
     }
 
     void mem_stats()
     {
         log("Memory (bytes):");
-        log("   Col BWT: ", bits_to_bytes(this->r*ALPHABET_BITS + 3*this->r*BWT_BITS + this->r*ID_BITS));
-        log("           Chars: ", bits_to_bytes(this->r*ALPHABET_BITS));
-        log("            Ints: ", bits_to_bytes(this->r*BWT_BITS));
-        log("             IDs: ", bits_to_bytes(this->r*ID_BITS));
+        log("   Col BWT: ", bits_to_bytes(r*ALPHABET_BITS + 4*r*BWT_BITS + r*ID_BITS));
+        log("           Chars: ", bits_to_bytes(r*ALPHABET_BITS));
+        log("            Ints: ", bits_to_bytes(r*BWT_BITS));
+        log("             IDs: ", bits_to_bytes(r*ID_BITS));
     }
 
     std::string get_file_extension() const
     {
-        return ".col_bwt";
+        return ".test_bwt";
     }
 
     /* serialize to the ostream
@@ -338,10 +524,23 @@ public:
         sdsl::structure_tree_node *child = sdsl::structure_tree::add_child(v, name, sdsl::util::class_name(*this));
         size_t written_bytes = 0;
 
+        out.write((char *)&n, sizeof(n));
+        written_bytes += sizeof(n);
+
+        out.write((char *)&r, sizeof(r));
+        written_bytes += sizeof(r);
+
         out.write((char *)&bwt_r, sizeof(bwt_r));
         written_bytes += sizeof(bwt_r);
 
-        written_bytes += LF_table<row_t>::serialize(out, child, "LF_table");
+        size_t size = LF_runs.size();
+        out.write((char *)&size, sizeof(size));
+        written_bytes += sizeof(size);
+
+        const char* LF_runs_mem = reinterpret_cast<const char*>(LF_runs.data());
+        size_t LF_runs_bytes = LF_runs.size() * sizeof(row_t);
+        out.write(LF_runs_mem, LF_runs_bytes);
+        written_bytes += LF_runs_bytes;
 
         return written_bytes;
     }
@@ -353,30 +552,16 @@ public:
     {
         size_t size;
 
+        in.read((char *)&n, sizeof(n));
+        in.read((char *)&r, sizeof(r));
         in.read((char *)&bwt_r, sizeof(bwt_r));
 
-        LF_table<row_t>::load(in);
-    }
+        in.read((char *)&size, sizeof(size));
+        LF_runs = std::vector<row_t>(size);
 
-protected:
-    ulint bwt_r;
-};
-
-class col_pml : public col_bwt<col_thr>
-{
-public:
-    col_pml() {}
-
-    col_pml(std::ifstream &heads, std::ifstream &lengths, std::ifstream &col_ids, std::ifstream &thresholds, sdsl::sd_vector<> splits)
-        : col_bwt<col_thr>(heads, lengths, col_ids, splits)
-    {
-        read_thresholds(thresholds);
-    }
-
-    col_pml(std::ifstream &bwt, std::ifstream &col_ids, std::ifstream &thresholds, sdsl::sd_vector<> splits)
-        : col_bwt<col_thr>(bwt, col_ids, splits)
-    {
-        read_thresholds(thresholds);
+        char* LF_runs_mem = reinterpret_cast<char*>(LF_runs.data());
+        size_t LF_runs_bytes = LF_runs.size() * sizeof(row_t);
+        in.read(LF_runs_mem, LF_runs_bytes);
     }
 
     std::pair<std::vector<ulint>, std::vector<ulint>> query_pml(const std::string &pattern)
@@ -401,38 +586,35 @@ public:
         _query_pml(pattern, m, lens_rev, col_ids_rev);
     }
 
-    void mem_stats()
-    {
-        log("Memory (bytes):");
-        log("   Col BWT: ", bits_to_bytes(this->r*ALPHABET_BITS + 4*this->r*BWT_BITS + this->r*ID_BITS));
-        log("           Chars: ", bits_to_bytes(this->r*ALPHABET_BITS));
-        log("            Ints: ", bits_to_bytes(this->r*BWT_BITS));
-        log("             IDs: ", bits_to_bytes(this->r*ID_BITS));
-    }
-
-    std::string get_file_extension() const
-    {
-        return ".col_pml";
-    }
-
 protected:
-    void read_thresholds(std::ifstream &thresholds)
-    {
-        status("Reading thresholds");
-        thresholds.clear();
-        thresholds.seekg(0);
+    ulint n; // Length of BWT
+    ulint r; // Runs of BWT
+    ulint bwt_r;
 
-        size_t threshold = 0;
-        size_t i = 0;
-        while (thresholds.read((char *)&threshold, RW_BYTES))
+    vector<row_t> LF_runs;
+
+    void compute_table(vector<vector<ulint>> L_block_indices) {\
+        ulint curr_L_num = 0;
+        ulint L_seen = 0;
+        ulint F_seen = 0;
+        for(size_t i = 0; i < L_block_indices.size(); ++i) 
         {
-            uchar last = get_char(i);
-            do {
-                this->LF_runs[i++].threshold = threshold;
-            } while (i < this->r && get_char(i) == last);
+            for(size_t j = 0; j < L_block_indices[i].size(); ++j) 
+            {
+                ulint pos = L_block_indices[i][j];
+
+                LF_runs[pos].interval = curr_L_num;
+                LF_runs[pos].offset = F_seen - L_seen;
+
+                F_seen += get_length(pos);
+
+                while (curr_L_num < r && F_seen >= L_seen + get_length(curr_L_num)) 
+                {
+                    L_seen += get_length(curr_L_num);
+                    ++curr_L_num;
+                }
+            }
         }
-        assert(i == this->bwt_r);
-        status();
     }
 
     // Returns vectors of PML lengths and column ids
@@ -476,7 +658,7 @@ protected:
         std::vector<ulint> pml_lengths(m);
         std::vector<ulint> col_stats(m);
 
-        ulint pos = this->n - 1;
+        ulint pos = n - 1;
         ulint interval = r - 1;
         ulint offset = get_length(interval) - 1;
 
@@ -508,7 +690,7 @@ protected:
     {
         ulint new_interval = interval;
         ulint new_offset = offset;
-        ulint thr = this->n;
+        ulint thr = n;
 
         #ifdef MULTI_THREAD
         std::optional<std::pair<ulint, ulint>> pred_result, succ_result;
@@ -549,4 +731,4 @@ protected:
         offset = new_offset;
     }
 };
-#endif /* end of include guard: _COL_BWT_HH */
+#endif /* end of include guard: _TEST_BWT_HH */

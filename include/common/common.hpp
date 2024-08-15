@@ -255,6 +255,21 @@ ulint bits_to_bytes(const ulint bits){
     return (bits + 7) / 8;
 }
 
+template <typename T>
+size_t write_vec(const std::vector<T> &vec, std::ostream &out){
+    const char* data = reinterpret_cast<const char*>(vec.data());
+    size_t size = vec.size() * sizeof(T);
+    out.write(data, size);
+    return size;
+}
+
+template <typename T>
+void read_vec(std::vector<T> &vec, std::istream &in){
+    char* data = reinterpret_cast<char*>(vec.data());
+    size_t size = vec.size() * sizeof(T);
+    in.read(data, size);
+}
+
 #ifdef DNA_ALPHABET
 constexpr std::array<uchar, ASCII_SIZE> initCharToBits() {
     std::array<uchar, ASCII_SIZE> table = {};
@@ -277,5 +292,18 @@ constexpr uchar bitsToChar[ALPHABET_SIZE] = {
     'T'  // 101
 };
 #endif
+
+// // Define macros for different compilers
+// #if defined(_MSC_VER)
+//     #define PACKED_STRUCT_BEGIN __pragma(pack(push, 1))
+//     #define PACKED_STRUCT_END __pragma(pack(pop))
+//     #define PACKED
+// #elif defined(__GNUC__) || defined(__clang__)
+//     #define PACKED_STRUCT_BEGIN
+//     #define PACKED_STRUCT_END
+//     #define PACKED __attribute__((packed))
+// #else
+//     #error "Unsupported compiler"
+// #endif
 
 #endif /* end of include guard: _COMMON_HH */

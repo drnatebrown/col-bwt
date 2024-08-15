@@ -28,3 +28,11 @@ target_include_directories(pml_query PUBLIC    "../include/ds"
                                         "../include/common"
                                         )
 target_compile_options(pml_query PUBLIC "-std=c++17")
+
+add_executable(build_test_bwt build_test_bwt.cpp)
+target_link_libraries(build_test_bwt sdsl malloc_count divsufsort divsufsort64 ri)
+target_include_directories(build_test_bwt PUBLIC    "../include/ds"
+                                        "../include"
+                                        "../include/common"
+                                        )
+target_compile_options(build_test_bwt PUBLIC "-std=c++17")
