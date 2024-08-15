@@ -68,7 +68,7 @@ public:
 
         LF_row::load(in);
     }
-};
+} __attribute__((packed));
 
 // Row of the LF table using thresholds
 class col_thr : public col_row
@@ -106,7 +106,7 @@ public:
 
         col_row::load(in);
     }
-};
+} __attribute__((packed));
 
 // Must use col_row or an inherited class of col_row
 template <class row_t = col_row>
