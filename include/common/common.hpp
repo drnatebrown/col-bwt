@@ -46,7 +46,7 @@
 #define BWT_BYTES 5
 #define ID_BITS 40
 #define ASCII_SIZE 256
-// #define PRINT_STATS
+#define PRINT_STATS
 #define MULTI_THREAD
 #define DNA_ALPHABET
 
