@@ -296,8 +296,9 @@ public:
         status();
 
         #ifdef PRINT_STATS
-        stat("Text runs", runs());
-        stat("Text length", size());
+        stat("Col runs", this->runs());
+        stat("BWT runs", bwt_runs());
+        stat("Text length", this->size());
         #endif
     }
 

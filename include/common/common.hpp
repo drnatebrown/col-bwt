@@ -46,7 +46,7 @@
 #define BWT_BYTES 5
 #define ID_BITS 40
 #define ASCII_SIZE 256
-// #define PRINT_STATS
+#define PRINT_STATS
 #define MULTI_THREAD
 #define DNA_ALPHABET
 
@@ -112,33 +112,6 @@ void stat(const std::string& label, const T& value) {
 }
 #endif
 
-/* VERBOSE ONLY */
-//**************************************************************
-template <typename T>
-inline void log(const std::string& msg, const T& value) {
-    if (verbose) {
-        std::cout << indent() << "[LOG]: " << msg << to_str(value) << std::endl;
-    }
-}
-
-inline void log(const std::string& msg) {
-    if (verbose) {
-        std::cout << indent() << "[LOG]: " << msg << std::endl;
-    }
-}
-
-inline void status(const std::string& msg) {
-    if (verbose) {
-        std::cout << indent() << "[STATUS]: " << msg << "..." << std::flush;
-    }
-}
-
-inline void status() {
-    if (verbose) {
-        std::cout << " DONE" << std::endl;
-    }
-}
-
 class Timer {
 public:
     void start() {
@@ -153,14 +126,22 @@ public:
         t_end = std::chrono::high_resolution_clock::now();
     }
 
+    double getStartDuration() const {
+        return std::chrono::duration<double, std::ratio<1>>(t_end - t_start).count();
+    }
+
     // Method to print elapsed time from start to end
     void startTime() const {
-        write_time(std::chrono::duration<double, std::ratio<1>>(t_end - t_start).count());
+        write_time(getStartDuration());
+    }
+
+    double getMidDuration() const {
+        return std::chrono::duration<double, std::ratio<1>>(t_end - t_mid).count();
     }
 
     // Method to print elapsed time from mid to end
     void midTime() const {
-        write_time(std::chrono::duration<double, std::ratio<1>>(t_end - t_mid).count());
+        write_time(getMidDuration());
     }
 
 private:
@@ -177,6 +158,37 @@ private:
         }
     }
 };
+
+/* VERBOSE ONLY */
+//**************************************************************
+template <typename T>
+inline void log(const std::string& msg, const T& value) {
+    if (verbose) {
+        std::cout << indent() << "[LOG]: " << msg << to_str(value) << std::endl;
+    }
+}
+
+inline void log(const std::string& msg) {
+    if (verbose) {
+        std::cout << indent() << "[LOG]: " << msg << std::endl;
+    }
+}
+
+Timer status_time;
+
+inline void status(const std::string& msg) {
+    if (verbose) {
+        std::cout << indent() << "[STATUS]: " << msg << "..." << std::flush;
+        status_time.start();
+    }
+}
+
+inline void status() {
+    if (verbose) {
+        status_time.end();
+        std::cout << " DONE (" << status_time.getStartDuration() << "s)" << std::endl;
+    }
+}
 
 //********** end message options ********************
 
