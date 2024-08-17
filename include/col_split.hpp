@@ -18,17 +18,18 @@ namespace Options {
     /* How to split bwt runs based on cols */
     enum class Mode {
         Default, // Split all
-        Tunneled, // Split only until FL_mapping diverges
-        RunAligned // Split only if cols are run aligned
+        Tunneled // Split only until FL_mapping diverges
+        // TunneledAll // Split only until FL_mapping diverges, but keep keep stepping in case it converges
+        // RunAligned // Split only if cols are run aligned
     };
 
     /* How to handle overlapping runs */
     enum class Overlap {
         Split,  // Split on overlaps (keep all non-overlapping parts even if it segments into multiple runs)
-        Remove, // If any part of the run overlaps, remove both of the entire runs
-        Ignore, // Remove run which overlaps with existing col run
+        Remove, // Remove the entirety of any col run with overlaps
+        Ignore, // Remove run which overlaps with existing col run (FCFS)
         Append  // Keep existing col_run, split to include non-overlapping parts of col run to be added
-        // Largest -> greedily maxmize
+        // Largest -> maximize coverage
     };
 }
 
@@ -76,7 +77,8 @@ public:
                 range rg = {i, *c_pos - N - run_start, N};
                 vector<range> FL_ranges = FL_range(rg);
 
-                for (size_t j = 0; j < *c_len; ++j) {
+                bool skip_non_tunnel = (mode == Mode::Tunneled) && FL_ranges.size() > 1;
+                for (size_t j = 0; j < *c_len && !skip_non_tunnel; ++j) {
                     vector<range> next_ranges;
                     for (size_t k = 0; k < FL_ranges.size(); ++k) {
                         rg = FL_ranges[k];
@@ -85,19 +87,17 @@ public:
                         ulint col_span_end = idx + rg.offset + rg.height;
 
                         // Has boundary overlap, so skip computation for ignore/remove modes
-                        if ((overlap == Overlap::Remove || overlap == Overlap::Ignore) &&
-                            (col_ids[col_span_start] > 1 || col_ids[col_span_end - 1] > 1))
+                        bool skip_overlap = (overlap == Overlap::Remove || overlap == Overlap::Ignore) && (col_ids[col_span_start] > 1 || col_ids[col_span_end - 1] > 1);
+                        if (skip_overlap)
                         {
                             overlap_skip(col_ids, col_run_bv, col_span_start, col_span_end);
                         }
                         else {
                             ulint last_id = (col_span_start > 0) ? col_ids[col_span_start - 1] : 0;
-                            for (size_t l = col_span_start; l < col_span_end; ++l) {
+                            for (size_t l = col_span_start; l < col_span_end && !skip_overlap; ++l) {
                                 bool force_split = false;
                                 
-                                // If overlap (run aligned cannot overlap, no check needed)
-                                if (mode != Mode::RunAligned && col_ids[l] >= 1) {
-                                    bool break_loop = false;
+                                if (col_ids[l] >= 1) {
                                     switch (overlap) {
                                         case Overlap::Split:
                                             col_ids[l] = 1; // mark overlaps
@@ -113,44 +113,29 @@ public:
                                         case Overlap::Ignore:
                                             // TODO Can check the boundaries first to save time
                                             overlap_skip(col_ids, col_run_bv, col_span_start, col_span_end, l);
-                                            break_loop = true;
+                                            skip_overlap = true;
                                             break;
                                         default: // Overlap::Append does nothing, leave unchanged
                                             break;
                                     }
-                                    // Skip the rest of the loop if this col run is no longer being considered
-                                    if (break_loop) { break; }
                                 }
                                 else {
                                     col_ids[l] = c_id;
                                 }
 
-                                // Split if split rate is met and new run or we are splitting another run due to overlap
-                                /*
-                                * (j % split_rate == 0 && col_ids[l] == c_id) --> split rate and not overlapping
-                                */
-                                if (last_id != col_ids[l] && ((j % split_rate == 0 && col_ids[l] == c_id) || force_split)) {
-                                    switch (mode) {
-                                        case Mode::Tunneled:
-                                            if (FL_ranges.size() == 1) {
-                                                col_run_bv.set(l);
-                                            }
-                                            break;
-                                        case Mode::RunAligned:
-                                            if (rg.offset == 0 && tbl.get_length(rg.interval) == rg.height) {
-                                                col_run_bv.set(l);
-                                            }
-                                            break;
-                                        default: // Mode::Default
-                                            col_run_bv.set(l);
-                                            break;
+                                // Skip the rest of the loop if this col run is no longer being considered
+                                if (!skip_overlap) {
+                                    // (j % split_rate == 0 && col_ids[l] == c_id) --> split rate and not overlapping
+                                    // (force_split) --> force split if overlapping
+                                    if (last_id != col_ids[l] && ((j % split_rate == 0 && col_ids[l] == c_id) || force_split)) {
+                                        col_run_bv.set(l);
                                     }
-                                }
-                                else if (last_id == col_ids[l]) {
-                                    col_run_bv.unset(l);
-                                }
+                                    else if (last_id == col_ids[l]) {
+                                        col_run_bv.unset(l);
+                                    }
 
-                                last_id = col_ids[l];
+                                    last_id = col_ids[l];
+                                }
                             }
                             
                             if (col_span_end < n) {
@@ -178,12 +163,11 @@ public:
                             }
                         }
 
-                        // TODO: Paint non-overlapping run aligned even if split rate not met
-
                         vector<range> curr_ranges = FL_range(rg);
                         next_ranges.insert(next_ranges.end(), curr_ranges.begin(), curr_ranges.end());
                     }
                     FL_ranges = next_ranges;
+                    skip_non_tunnel = (mode == Mode::Tunneled) && FL_ranges.size() > 1;
                 }
                 ++c_pos;
                 ++c_len;

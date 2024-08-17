@@ -86,7 +86,7 @@ int main(int argc, char *const argv[])
     message("Splitting runs based on COL Positions using FL Table");
     timer.mid();
 
-    col_split<> split_ds(tbl);
+    col_split<> split_ds(tbl, Options::Mode::Default, Options::Overlap::Remove);
     split_ds.split(match_lens, match_pos, args.N);
 
     timer.end();

@@ -23,6 +23,8 @@
 #define _FL_TABLE_HH
 
 #include <common.hpp>
+#include <sdsl/int_vector.hpp>
+#include <sdsl/sd_vector.hpp>
 #include <sdsl/structure_tree.hpp>
 #include <sdsl/util.hpp>
 
@@ -118,6 +120,10 @@ public:
         compute_table(L_chars, L_lens, L_block_indices, char_runs);
         status();
 
+        status("Computing bitvector marking run-heads in L");
+        compute_L_heads(L_lens);
+        status();
+
         #ifdef PRINT_STATS
         stat("Text runs", runs());
         stat("Text length", size());
@@ -169,6 +175,10 @@ public:
 
         status("Computing values of BWT table");
         compute_table(L_chars, L_lens, L_block_indices, char_runs);
+        status();
+
+        status("Computing bitvector marking run-heads in L");
+        compute_L_heads(L_lens);
         status();
 
         #ifdef PRINT_STATS
@@ -278,6 +288,9 @@ public:
         out.write((char *)&r, sizeof(r));
         written_bytes += sizeof(r);
 
+        written_bytes += L_heads.serialize(out, v, "L_heads");
+
+        // TODO use read_vec
         for(size_t i = 0; i < r; ++i)
         {
             written_bytes += FL_runs[i].serialize(out, v, "FL_run_" + std::to_string(i));
@@ -296,6 +309,10 @@ public:
         in.read((char *)&n, sizeof(n));
         in.read((char *)&r, sizeof(r));
 
+        L_heads.load(in);
+        L_heads_select = sd_select(&L_heads);
+
+        // TODO use writevec
         FL_runs = std::vector<FL_row>(r);
         for(size_t i = 0; i < r; ++i)
         {
@@ -308,6 +325,8 @@ protected:
     ulint r; // Runs of BWT
 
     vector<FL_row> FL_runs;
+    sdsl::sd_vector<> L_heads;
+    sd_select L_heads_select;
 
     void compute_table(vector<char> L_chars, vector<ulint> L_lens, vector<vector<ulint>> L_block_indices, vector<vector<ulint>> char_runs) {
         FL_runs = vector<FL_row>(r);
@@ -345,6 +364,18 @@ protected:
                 ++k;
             }
         }
+    }
+
+    void compute_L_heads(vector<ulint> &L_lens) {
+        assert(L_lens.size() == r);
+        sdsl::sd_vector_builder L_heads_builder(n, L_lens.size());
+        size_t idx = 0;
+        for (ulint i = 0; i < L_lens.size(); ++i) {
+            L_heads_builder.set(idx);
+            idx += L_lens[i];
+        }
+        L_heads = sdsl::sd_vector<>(L_heads_builder);
+        L_heads_select = sd_select(&L_heads);
     }
 };
 
