@@ -30,6 +30,7 @@
 
 using namespace std;
 
+//TODO move to using reduced alphabet
 class FL_table
 {
 public:
@@ -92,8 +93,8 @@ public:
         
         vector<char> L_chars = vector<char>();
         vector<ulint> L_lens = vector<ulint>();
-        vector<vector<ulint>> L_block_indices = vector<vector<ulint>>(ALPHABET_SIZE);
-        vector<vector<ulint>> char_runs = vector<vector<ulint>>(ALPHABET_SIZE); // Vector containing lengths for runs of certain character
+        vector<vector<ulint>> L_block_indices = vector<vector<ulint>>(256);
+        vector<vector<ulint>> char_runs = vector<vector<ulint>>(256); // Vector containing lengths for runs of certain character
 
         status("Constructing BWT table (FL)");
         char c;
@@ -137,8 +138,8 @@ public:
         
         vector<char> L_chars = vector<char>();
         vector<ulint> L_lens = vector<ulint>();
-        vector<vector<ulint>> L_block_indices = vector<vector<ulint>>(ALPHABET_SIZE);
-        vector<vector<ulint>> char_runs = vector<vector<ulint>>(ALPHABET_SIZE); // Vector containing lengths for runs of certain character
+        vector<vector<ulint>> L_block_indices = vector<vector<ulint>>(256);
+        vector<vector<ulint>> char_runs = vector<vector<ulint>>(256); // Vector containing lengths for runs of certain character
         
         status("Constructing BWT table (FL)");
         char last_c;
@@ -257,6 +258,16 @@ public:
         return ".FL_table";
     }
 
+    ulint get_L_pos(ulint i)
+    {
+        return L_heads_select(i + 1);
+    }
+
+    ulint get_L_length(ulint i)
+    {
+        return (i == r - 1) ? (n - get_L_pos(i)) : (get_L_pos(i + 1) - get_L_pos(i));
+    }
+
     void bwt_stats()
     {
         log("Number of BWT equal-letter runs: r = ", r);
@@ -268,10 +279,13 @@ public:
 
     void mem_stats()
     {
+        sdsl::nullstream ns;
+        size_t L_runs_size = L_heads.serialize(ns);
         log("Memory (bytes):");
-        log("   FL Table: ", r + 4*r*BWT_BYTES);
+        log("   FL Table: ", r + 4*r*BWT_BYTES + L_runs_size);
         log("           Chars: ", r);
         log("            Ints: ", r*BWT_BYTES);
+        log("          L Runs: ", L_runs_size);
     }
 
     /* serialize to the ostream
@@ -332,7 +346,7 @@ protected:
         FL_runs = vector<FL_row>(r);
         size_t i = 0;
         size_t curr_idx = 0;
-        for (size_t c = 0; c < ALPHABET_SIZE; ++c)
+        for (size_t c = 0; c < 256; ++c)
         {
             for (size_t j = 0; j < char_runs[c].size(); ++j) {
                 size_t length = char_runs[c][j];

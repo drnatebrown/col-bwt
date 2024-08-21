@@ -31,7 +31,7 @@ int main(int argc, char *const argv[])
     Args args;
     parseArgs(argc, argv, args);
 
-    message("Building Col BWT supporting Co-lineary Statistics: ");
+    message("Building Col BWT supporting Co-linearity Statistics: ");
     timer.start();
 
     std::string col_ids_fname = args.filename + ".col_ids";

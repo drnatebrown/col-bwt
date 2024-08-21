@@ -38,8 +38,8 @@ public:
 
     LF_row() {}
 
-    LF_row(uchar c, ulint i, ulint l, ulint o)
-        : character(c), idx(i), interval(l), offset(o) {}
+    LF_row(uchar c, ulint ix, ulint in, ulint o)
+        : character(c), idx(ix), interval(in), offset(o) {}
 
     size_t serialize(std::ostream &out, sdsl::structure_tree_node *v = nullptr, std::string name ="")
     {

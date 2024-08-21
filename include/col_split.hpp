@@ -18,9 +18,9 @@ namespace Options {
     /* How to split bwt runs based on cols */
     enum class Mode {
         Default, // Split all
-        Tunneled // Split only until FL_mapping diverges
+        Tunneled, // Split only until FL_mapping diverges
+        RunAligned // Split only if cols are run aligned
         // TunneledAll // Split only until FL_mapping diverges, but keep keep stepping in case it converges
-        // RunAligned // Split only if cols are run aligned
     };
 
     /* How to handle overlapping runs */
@@ -69,6 +69,8 @@ public:
         size_t c_id = 2; // 0 denotes to id, 1 denotes overlap
         vector<ulint>::iterator c_pos = col_pos.begin();
         vector<ulint>::iterator c_len = col_len.begin();
+
+        // first pass finds col run boundaries
         for (size_t i = 0; i < tbl.runs(); ++i) {
             ulint run_len = tbl.get_length(i);
 
@@ -95,6 +97,7 @@ public:
                         else {
                             ulint last_id = (col_span_start > 0) ? col_ids[col_span_start - 1] : 0;
                             for (size_t l = col_span_start; l < col_span_end && !skip_overlap; ++l) {
+                                // force split if overlapping
                                 bool force_split = false;
                                 
                                 if (col_ids[l] >= 1) {
@@ -125,9 +128,8 @@ public:
 
                                 // Skip the rest of the loop if this col run is no longer being considered
                                 if (!skip_overlap) {
-                                    // (j % split_rate == 0 && col_ids[l] == c_id) --> split rate and not overlapping
-                                    // (force_split) --> force split if overlapping
-                                    if (last_id != col_ids[l] && ((j % split_rate == 0 && col_ids[l] == c_id) || force_split)) {
+                                    bool split_rate_met = j % split_rate == 0 && col_ids[l] == c_id;
+                                    if (last_id != col_ids[l] && (split_rate_met || force_split)) {
                                         col_run_bv.set(l);
                                     }
                                     else if (last_id == col_ids[l]) {
@@ -140,16 +142,19 @@ public:
                             
                             if (col_span_end < n) {
                                 bool id_mismatch = (last_id != col_ids[col_span_end]);
+                                bool split_rate_met = (j % split_rate == 0);
                                 bool need_run_end = false;
                                 switch(overlap) {
-                                    case Overlap::Split:
+                                    case Overlap::Split: {
                                         // End the current run if:
                                         // i) we are at the end of a run of overlapping characters and the next is not overlapping
                                         // ii) we are at the end of a run of non-overlapping characters and the next id does not match
-                                        need_run_end = id_mismatch && (last_id > 1 || col_ids[col_span_end] > 0);
+                                        bool force_split = (last_id > 1 || col_ids[col_span_end] > 0);
+                                        need_run_end = id_mismatch && (force_split || split_rate_met);
                                         break;
+                                    }
                                     default:
-                                        need_run_end = id_mismatch;
+                                        need_run_end = id_mismatch && split_rate_met;
                                         break;
                                 }
 
@@ -177,43 +182,8 @@ public:
         }
         status();
 
-        status("Creating runs bitvector");
-        col_runs = sd_vector(col_run_bv.get_bv());
-        sd_select col_select = sd_select(&col_runs);
-        status();
-
-        status("Creatings IDs vector");
-        #ifdef PRINT_STATS
-        size_t col_chars = 0;
-        size_t num_col_runs = 0;
-        bool run = false;
-        size_t last_idx = 0;
-        #endif
-        for (size_t i = 1; i <= col_run_bv.set_bits(); ++i) {
-            size_t idx = col_select(i);
-            col_run_ids.push_back((col_ids[idx] > 1) ? col_ids[idx] - 1 : 0);
-
-            #ifdef PRINT_STATS
-            if (run) {
-                col_chars += idx - last_idx;
-            }
-
-            if (col_ids[idx] > 1) {
-                run = true;
-                last_idx = idx;
-                ++num_col_runs;
-            }
-            else {
-                run = false;
-            }
-            #endif
-        }
-        status();
-
-        #ifdef PRINT_STATS
-        cout << "Col runs: " << num_col_runs << std::endl;
-        cout << "Col chars: " << col_chars << std::endl;
-        #endif
+        // second pass resolves col run boundaries with bwt run boundaries
+        find_col_runs(col_ids, col_run_bv, split_rate);
     }
 
     size_t save_full(string filename) {
@@ -232,7 +202,7 @@ public:
     /* Space saving option to mod the values before saving */
     size_t save(string filename, int id_bits=ID_BITS) {
         assert (id_bits <= sizeof(ulint) * 8);
-        ulint id_max = 1 << id_bits;
+        ulint id_max = 1ULL << id_bits;
         ulint id_bytes = (id_bits + 7) / 8; // bytes needed to store id
 
         size_t written_bytes = 0;
@@ -365,6 +335,144 @@ private:
             col_ids[curr_pos] = 0;
             col_run_bv.unset(curr_pos);
         }
+    }
+
+    // Finds col runs and computes col_run_ids and col_runs
+    void find_col_runs(vector<ulint> &col_ids, bitvec &col_run_bv, int split_rate) {
+        #ifdef PRINT_STATS
+        size_t col_chars = 0;
+        size_t num_col_bits = 0;
+        size_t last_idx = 0;
+        #endif
+
+        sd_select col_select;
+        // Don't need bitvector, only aligns to existing runs
+        if (mode == Mode::RunAligned) {
+            col_run_bv = bitvec(n);
+        }
+        // with these settings, we can compress the bitvector only once; print status now
+        else if (split_rate == 1) {
+            status("Creating runs bitvector");
+            col_runs = sd_vector(col_run_bv.get_bv());
+            col_select = sd_select(&col_runs);
+            status();
+        }
+        else {
+            col_runs = sd_vector(col_run_bv.get_bv());
+            col_select = sd_select(&col_runs);
+        }
+
+        status("Creating IDs vector");
+        col_run_ids = vector<ulint>();
+        size_t set_bits = col_run_bv.set_bits();
+
+        // To keep track of L_runs
+        size_t curr_L_run = 0;
+        size_t curr_L_len = tbl.get_L_length(curr_L_run);
+        size_t curr_L_pos = 0;
+        ulint last_id = 0;
+
+        // TODO refactor to not add runs if not needed
+        auto process_bwt_runs = [&](size_t idx) {
+            while (curr_L_run < tbl.runs() && curr_L_pos < idx) {
+                bool run_aligned = false;
+                // only check if run aligned mode or no id to assign
+                bool check_run_aligned = (mode == Mode::RunAligned || last_id == 0);
+                if (check_run_aligned && col_ids[curr_L_pos] > 1 && (col_ids[curr_L_pos] == col_ids[curr_L_pos + curr_L_len - 1])) {
+                    ulint curr_id = col_ids[curr_L_pos];
+                    run_aligned = true;
+                    for (size_t j = curr_L_pos + 1; j < curr_L_pos + curr_L_len - 1 && run_aligned; ++j) {
+                        run_aligned = (col_ids[j] == curr_id);
+                    }
+                }
+
+                if (run_aligned) {
+                    col_run_bv.set(curr_L_pos);
+                    add_col_run_id(col_ids[curr_L_pos]);
+                    
+                    #ifdef PRINT_STATS
+                    if (mode == Mode::RunAligned) {
+                        col_chars += curr_L_len;
+                        ++num_col_bits;
+                    }
+                    #endif
+                }
+                else {
+                    // Don't print last id if it was not run aligned, just end the run
+                    ulint curr_id = (mode == Mode::RunAligned) ? 0 : last_id;
+                    col_run_bv.set(curr_L_pos);
+                    add_col_run_id(curr_id);
+                }
+
+                ++curr_L_run;
+                if (curr_L_run < tbl.runs()) {
+                    curr_L_pos = tbl.get_L_pos(curr_L_run);
+                    curr_L_len = tbl.get_L_length(curr_L_run);
+                }
+            }
+        };
+
+        if (mode != Mode::RunAligned) {
+            for (size_t i = 1; i <= set_bits; ++i) {
+                size_t idx = col_select(i);
+
+                // if subsampling, look for run aligned runs to add (does not add runs compared BWT runs)
+                // if (split_rate > 1) {
+                //     process_bwt_runs(idx);
+                // }
+
+                // Add other non-run aligned
+                add_col_run_id(col_ids[idx]);
+                last_id = col_ids[idx];
+
+                #ifdef PRINT_STATS
+                ++num_col_bits;
+                if (i > 1 && col_ids[last_idx] > 1) {
+                    col_chars += idx - last_idx;
+                }
+                last_idx = idx;
+                #endif
+            }
+            #ifdef PRINT_STATS
+            if (col_ids[last_idx] > 1) {
+                col_chars += n - last_idx;
+                ++num_col_bits;
+            }
+            #endif
+        }
+        // if (split_rate > 1 || mode == Mode::RunAligned) {
+        //     process_bwt_runs(n);
+        // }
+        status();
+
+        // Need to remake runs bv if changes were made
+        if (split_rate > 1 || mode == Options::Mode::RunAligned) {
+            status("Creating runs bitvector");
+            col_runs = sd_vector(col_run_bv.get_bv());
+            status();
+        }
+
+        #ifdef PRINT_STATS
+        cout << "Col bits: " << num_col_bits << std::endl;
+        cout << "Col chars: " << col_chars << std::endl;
+        #endif
+
+        col_chars = 0;
+        size_t run_count = 1;
+        for (size_t i = 0; i < col_ids.size(); ++i) {
+            col_chars += col_ids[i] > 1;
+            if (i > 0) {
+                if (col_ids[i] != col_ids[i - 1]) {
+                    ++run_count;
+                }
+            }
+        }
+        cout << "Col chars: " << col_chars << std::endl;
+        cout << "Run count: " << run_count << std::endl;
+    }
+
+    void add_col_run_id(ulint id) {
+        col_run_ids.push_back((id > 1) ? id - 1 : 0);
     }
 
     size_t serialize_col_runs(sd_vector<> &sdv, std::string filename) {
