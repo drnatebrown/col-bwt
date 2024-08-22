@@ -25,6 +25,7 @@
 #include "common/common.hpp"
 
 #include <common.hpp>
+#include <cstddef>
 #include <thread>
 #include <iostream>
 #include <functional>
@@ -43,19 +44,18 @@ public:
 
     col_row() {}
 
-    col_row(uchar c, ulint i, ulint l, ulint o, ulint id)
-        : LF_row(c, i, l, o), col_id(id) {}
+    col_row(uchar c, ulint ix, ulint in, ulint o, ulint id)
+        : LF_row(c, ix, in, o), col_id(id) {}
 
-    size_t serialize(std::ostream &out, sdsl::structure_tree_node *v = nullptr, std::string name ="")
+    size_t serialize(std::ostream &out)
     {
-        sdsl::structure_tree_node *child = sdsl::structure_tree::add_child(v, name, sdsl::util::class_name(*this));
         size_t written_bytes = 0;
 
         size_t temp = col_id;
         out.write((char *)&temp, ID_BYTES);
         written_bytes += ID_BYTES;
 
-        LF_row::serialize(out, child, "LF_row");
+        LF_row::serialize(out);
 
         return written_bytes;
     }
@@ -78,22 +78,21 @@ public:
 
     col_thr() {}
 
-    col_thr(uchar c, ulint i, ulint l, ulint o, ulint id, ulint t)
-        : col_row(c, i, l, o, id), threshold(t) {}
+    col_thr(uchar c, ulint ix, ulint in, ulint o, ulint id, ulint t)
+        : col_row(c, ix, in, o, id), threshold(t) {}
 
-    col_thr(uchar c, ulint i, ulint l, ulint o, ulint id)
-        : col_row(c, i, l, o, id), threshold() {}
+    col_thr(uchar c, ulint ix, ulint in, ulint o, ulint id)
+        : col_row(c, ix, in, o, id), threshold() {}
 
-    size_t serialize(std::ostream &out, sdsl::structure_tree_node *v = nullptr, std::string name ="")
+    size_t serialize(std::ostream &out)
     {
-        sdsl::structure_tree_node *child = sdsl::structure_tree::add_child(v, name, sdsl::util::class_name(*this));
         size_t written_bytes = 0;
 
         size_t temp = threshold;
         out.write((char *)&temp, BWT_BYTES);
         written_bytes += BWT_BYTES;
 
-        col_row::serialize(out, child, "LF_row");
+        col_row::serialize(out);
 
         return written_bytes;
     }
@@ -115,8 +114,13 @@ class col_bwt : public LF_table<row_t>
 public:
     col_bwt() {}
 
-    col_bwt(std::ifstream &heads, std::ifstream &lengths, std::ifstream &col_ids, sdsl::sd_vector<> splits)
+    col_bwt(std::ifstream &heads, std::ifstream &lengths, std::ifstream &col_ids, sdsl::sd_vector<> &splits)
     {
+        #ifdef PRINT_STATS
+        ulint col_chars = 0;
+        ulint col_runs = 0;
+        #endif
+
         heads.clear();
         heads.seekg(0);
         lengths.clear();
@@ -133,11 +137,14 @@ public:
             s_set_bits = s_rank(splits.size());
             assert(s_set_bits > 1);
 
+            #ifdef DEBUG
             col_ids.seekg(0, std::ios::end);
             size_t col_ids_size = col_ids.tellg();
             col_ids_size /= ID_BYTES;
+            col_ids.clear();
             col_ids.seekg(0, std::ios::beg);
             assert(col_ids_size == s_set_bits);
+            #endif
         }
         sd_select s_select(&splits);
 
@@ -149,6 +156,7 @@ public:
         this->n = 0;
         size_t s = 0;
         size_t s_curr = s_select(s + 1);
+        size_t curr_id = 0;
         while ((c = heads.get()) != EOF)
         {
             size_t length = 0;
@@ -158,50 +166,44 @@ public:
             c = charToBits[c];
             #endif
 
-            while (s < s_set_bits && s_curr < this->n + length)
-            {
-                size_t curr_id = 0;
-                L_block_indices[c].push_back(i++);
-
-                // If the split corresponds to an existing run-head, write the run with no-id first
-                if (s_curr >this->n) {
-                    this->LF_runs.push_back(row_t(c, this->n, 0, 0, curr_id));
-                    col_ids.read((char *)&curr_id, ID_BYTES);
-
-                    ulint delta = s_curr -this->n;
-                    this->n += delta;
-                    length -= delta;
-                    ++s;
-                    s_curr = (s < s_set_bits) ? s_select(s + 1) : 0;
-                }
-                // otherwise the split corresponds to this run, fetch its id first
-                else {
-                    col_ids.read((char *)&curr_id, ID_BYTES);
-                    this->LF_runs.push_back(row_t(c,this->n, 0, 0, curr_id));
-
-                    ++s;
-                    s_curr = (s < s_set_bits) ? s_select(s + 1) : 0;
-                    // The length of this run is determined by the next split
-                    if (s < s_set_bits && s_curr <this->n + length) {
-                        ulint delta = s_curr -this->n;
-                        this->n += delta;
-                        length -= delta;
-                    }
-                    // Else its the rest of this run
-                    else {
-                        this->n += length;
-                        length = 0;
-                    }
-                }
+            size_t run_end = this->n + length;
+            if (s_curr == this->n) {
+                col_ids.read((char *)&curr_id, ID_BYTES);
+                ++s;
+                s_curr = (s < s_set_bits) ? s_select(s + 1) : 0;
             }
 
-            // Regular BWT run
+            while (s < s_set_bits && s_curr < run_end) {
+                L_block_indices[c].push_back(i++);
+                this->LF_runs.push_back(row_t(c, this->n, 0, 0, curr_id));
+                size_t delta = s_curr - this->n;
+                this->n += delta;
+                length -= delta;
+
+                #ifdef PRINT_STATS
+                if (curr_id > 0) {
+                    col_chars += delta;
+                    ++col_runs;
+                }
+                #endif
+
+                ++s;
+                s_curr = (s < s_set_bits) ? s_select(s + 1) : 0;
+                col_ids.read((char *)&curr_id, ID_BYTES);
+            }
+
             if (length > 0) {
-                this->LF_runs.push_back(row_t(c,this->n, 0, 0, 0));
                 L_block_indices[c].push_back(i++);
-                this->n+=length;
-            }
+                this->LF_runs.push_back(row_t(c, this->n, 0, 0, curr_id));
+                this->n += length;
 
+                #ifdef PRINT_STATS
+                if (curr_id > 0) {
+                    col_chars += length;
+                    ++col_runs;
+                }
+                #endif
+            }
             ++bwt_r;
         }
         this->r = this->LF_runs.size();
@@ -212,7 +214,9 @@ public:
         status();
 
         #ifdef PRINT_STATS
-        stat("Col runs", this->runs());
+        stat("Col-BWT runs", this->runs());
+        stat("Col runs", col_runs);
+        stat("Col chars", col_chars);
         stat("BWT runs", bwt_runs());
         stat("Text length", this->size());
         #endif
@@ -220,6 +224,11 @@ public:
 
     col_bwt(std::ifstream &bwt, std::ifstream &col_ids, sdsl::sd_vector<> splits)
     {
+        #ifdef PRINT_STATS
+        ulint col_chars = 0;
+        ulint col_runs = 0;
+        #endif
+
         bwt.clear();
         bwt.seekg(0);
         col_ids.clear();
@@ -234,13 +243,15 @@ public:
             s_set_bits = s_rank(splits.size());
             assert(s_set_bits > 1);
 
+            #ifdef DEBUG
             col_ids.seekg(0, std::ios::end);
             size_t col_ids_size = col_ids.tellg()/ID_BYTES;
             col_ids.seekg(0, std::ios::beg);
             assert(col_ids_size == s_set_bits);
+            #endif
         }
         sd_select s_select(&splits);
-        
+
         status("Constructing Col BWT table");
         char last_c;
         char c;
@@ -263,6 +274,13 @@ public:
             {
                 this->LF_runs.push_back(row_t(last_c, this->n, 0, 0, curr_id));
                 L_block_indices[last_c].push_back(i++);
+
+                #ifdef PRINT_STATS
+                if (curr_id > 0) {
+                    col_chars += length;
+                    ++col_runs;
+                }
+                #endif
 
                 this->n+=length;
                 length = 0;
@@ -296,7 +314,8 @@ public:
         status();
 
         #ifdef PRINT_STATS
-        stat("Col runs", this->runs());
+        stat("Col-BWT runs", this->runs());
+        stat("Col runs", col_runs);
         stat("BWT runs", bwt_runs());
         stat("Text length", this->size());
         #endif
@@ -336,13 +355,12 @@ public:
     */
     size_t serialize(std::ostream &out, sdsl::structure_tree_node *v = nullptr, std::string name ="")
     {
-        sdsl::structure_tree_node *child = sdsl::structure_tree::add_child(v, name, sdsl::util::class_name(*this));
         size_t written_bytes = 0;
 
         out.write((char *)&bwt_r, sizeof(bwt_r));
         written_bytes += sizeof(bwt_r);
 
-        written_bytes += LF_table<row_t>::serialize(out, child, "LF_table");
+        written_bytes += LF_table<row_t>::serialize(out);
 
         return written_bytes;
     }
@@ -352,8 +370,6 @@ public:
     */
     void load(std::istream &in)
     {
-        size_t size;
-
         in.read((char *)&bwt_r, sizeof(bwt_r));
 
         LF_table<row_t>::load(in);

@@ -27,6 +27,8 @@
 
 using namespace std;
 
+// TODO defines for each row member bits
+
 // Row of the LF table
 class LF_row
 {
@@ -38,12 +40,11 @@ public:
 
     LF_row() {}
 
-    LF_row(uchar c, ulint i, ulint l, ulint o)
-        : character(c), idx(i), interval(l), offset(o) {}
+    LF_row(uchar c, ulint ix, ulint in, ulint o)
+        : character(c), idx(ix), interval(in), offset(o) {}
 
-    size_t serialize(std::ostream &out, sdsl::structure_tree_node *v = nullptr, std::string name ="")
+    size_t serialize(std::ostream &out)
     {
-        sdsl::structure_tree_node *child = sdsl::structure_tree::add_child(v, name, sdsl::util::class_name(*this));
         size_t written_bytes = 0;
 
         size_t temp = character;
@@ -321,9 +322,8 @@ public:
     /* serialize to the ostream
     * \param out     the ostream
     */
-    size_t serialize(std::ostream &out, sdsl::structure_tree_node *v = nullptr, std::string name ="")
+    size_t serialize(std::ostream &out)
     {
-        sdsl::structure_tree_node *child = sdsl::structure_tree::add_child(v, name, sdsl::util::class_name(*this));
         size_t written_bytes = 0;
 
         out.write((char *)&n, sizeof(n));

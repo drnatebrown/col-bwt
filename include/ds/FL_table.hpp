@@ -23,25 +23,27 @@
 #define _FL_TABLE_HH
 
 #include <common.hpp>
+#include <sdsl/int_vector.hpp>
+#include <sdsl/sd_vector.hpp>
 #include <sdsl/structure_tree.hpp>
 #include <sdsl/util.hpp>
 
 using namespace std;
 
+//TODO move to using reduced alphabet
 class FL_table
 {
 public:
     // Row of the FL table
-    typedef struct FL_row
+    struct FL_row
     {
         char character;
         ulint idx : BWT_BITS;
         ulint interval : BWT_BITS;
         ulint offset : BWT_BITS;
 
-        size_t serialize(std::ostream &out, sdsl::structure_tree_node *v = nullptr, std::string name ="")
+        size_t serialize(std::ostream &out)
         {
-            sdsl::structure_tree_node *child = sdsl::structure_tree::add_child(v, name, sdsl::util::class_name(*this));
             size_t written_bytes = 0;
 
             out.write((char *)&character, sizeof(character));
@@ -90,8 +92,8 @@ public:
         
         vector<char> L_chars = vector<char>();
         vector<ulint> L_lens = vector<ulint>();
-        vector<vector<ulint>> L_block_indices = vector<vector<ulint>>(ALPHABET_SIZE);
-        vector<vector<ulint>> char_runs = vector<vector<ulint>>(ALPHABET_SIZE); // Vector containing lengths for runs of certain character
+        vector<vector<ulint>> L_block_indices = vector<vector<ulint>>(256);
+        vector<vector<ulint>> char_runs = vector<vector<ulint>>(256); // Vector containing lengths for runs of certain character
 
         status("Constructing BWT table (FL)");
         char c;
@@ -118,6 +120,10 @@ public:
         compute_table(L_chars, L_lens, L_block_indices, char_runs);
         status();
 
+        status("Computing bitvector marking run-heads in L");
+        compute_L_heads(L_lens);
+        status();
+
         #ifdef PRINT_STATS
         stat("Text runs", runs());
         stat("Text length", size());
@@ -131,8 +137,8 @@ public:
         
         vector<char> L_chars = vector<char>();
         vector<ulint> L_lens = vector<ulint>();
-        vector<vector<ulint>> L_block_indices = vector<vector<ulint>>(ALPHABET_SIZE);
-        vector<vector<ulint>> char_runs = vector<vector<ulint>>(ALPHABET_SIZE); // Vector containing lengths for runs of certain character
+        vector<vector<ulint>> L_block_indices = vector<vector<ulint>>(256);
+        vector<vector<ulint>> char_runs = vector<vector<ulint>>(256); // Vector containing lengths for runs of certain character
         
         status("Constructing BWT table (FL)");
         char last_c;
@@ -169,6 +175,10 @@ public:
 
         status("Computing values of BWT table");
         compute_table(L_chars, L_lens, L_block_indices, char_runs);
+        status();
+
+        status("Computing bitvector marking run-heads in L");
+        compute_L_heads(L_lens);
         status();
 
         #ifdef PRINT_STATS
@@ -247,6 +257,26 @@ public:
         return ".FL_table";
     }
 
+    ulint get_L_pos(ulint i)
+    {
+        return L_heads_select(i + 1);
+    }
+
+    ulint get_L_length(ulint i)
+    {
+        return (i == r - 1) ? (n - get_L_pos(i)) : (get_L_pos(i + 1) - get_L_pos(i));
+    }
+
+    bool is_L_head(ulint i)
+    {
+        return L_heads[i];
+    }
+
+    sdsl::sd_vector<>& get_L_heads()
+    {
+        return L_heads;
+    }
+
     void bwt_stats()
     {
         log("Number of BWT equal-letter runs: r = ", r);
@@ -258,10 +288,13 @@ public:
 
     void mem_stats()
     {
+        sdsl::nullstream ns;
+        size_t L_runs_size = L_heads.serialize(ns);
         log("Memory (bytes):");
-        log("   FL Table: ", r + 4*r*BWT_BYTES);
+        log("   FL Table: ", r + 4*r*BWT_BYTES + L_runs_size);
         log("           Chars: ", r);
         log("            Ints: ", r*BWT_BYTES);
+        log("          L Runs: ", L_runs_size);
     }
 
     /* serialize to the ostream
@@ -269,7 +302,6 @@ public:
     */
     size_t serialize(std::ostream &out, sdsl::structure_tree_node *v = nullptr, std::string name ="")
     {
-        sdsl::structure_tree_node *child = sdsl::structure_tree::add_child(v, name, sdsl::util::class_name(*this));
         size_t written_bytes = 0;
 
         out.write((char *)&n, sizeof(n));
@@ -278,9 +310,12 @@ public:
         out.write((char *)&r, sizeof(r));
         written_bytes += sizeof(r);
 
+        written_bytes += L_heads.serialize(out);
+
+        // TODO use read_vec
         for(size_t i = 0; i < r; ++i)
         {
-            written_bytes += FL_runs[i].serialize(out, v, "FL_run_" + std::to_string(i));
+            written_bytes += FL_runs[i].serialize(out);
         }
 
         return written_bytes;
@@ -291,11 +326,13 @@ public:
     */
     void load(std::istream &in)
     {
-        size_t size;
-
         in.read((char *)&n, sizeof(n));
         in.read((char *)&r, sizeof(r));
 
+        L_heads.load(in);
+        L_heads_select = sd_select(&L_heads);
+
+        // TODO use writevec
         FL_runs = std::vector<FL_row>(r);
         for(size_t i = 0; i < r; ++i)
         {
@@ -308,12 +345,14 @@ protected:
     ulint r; // Runs of BWT
 
     vector<FL_row> FL_runs;
+    sdsl::sd_vector<> L_heads;
+    sd_select L_heads_select;
 
     void compute_table(vector<char> L_chars, vector<ulint> L_lens, vector<vector<ulint>> L_block_indices, vector<vector<ulint>> char_runs) {
         FL_runs = vector<FL_row>(r);
         size_t i = 0;
         size_t curr_idx = 0;
-        for (size_t c = 0; c < ALPHABET_SIZE; ++c)
+        for (size_t c = 0; c < 256; ++c)
         {
             for (size_t j = 0; j < char_runs[c].size(); ++j) {
                 size_t length = char_runs[c][j];
@@ -345,6 +384,18 @@ protected:
                 ++k;
             }
         }
+    }
+
+    void compute_L_heads(vector<ulint> &L_lens) {
+        assert(L_lens.size() == r);
+        sdsl::sd_vector_builder L_heads_builder(n, L_lens.size());
+        size_t idx = 0;
+        for (ulint i = 0; i < L_lens.size(); ++i) {
+            L_heads_builder.set(idx);
+            idx += L_lens[i];
+        }
+        L_heads = sdsl::sd_vector<>(L_heads_builder);
+        L_heads_select = sd_select(&L_heads);
     }
 };
 
