@@ -35,16 +35,15 @@ class FL_table
 {
 public:
     // Row of the FL table
-    typedef struct FL_row
+    struct FL_row
     {
         char character;
         ulint idx : BWT_BITS;
         ulint interval : BWT_BITS;
         ulint offset : BWT_BITS;
 
-        size_t serialize(std::ostream &out, sdsl::structure_tree_node *v = nullptr, std::string name ="")
+        size_t serialize(std::ostream &out)
         {
-            sdsl::structure_tree_node *child = sdsl::structure_tree::add_child(v, name, sdsl::util::class_name(*this));
             size_t written_bytes = 0;
 
             out.write((char *)&character, sizeof(character));
@@ -268,6 +267,16 @@ public:
         return (i == r - 1) ? (n - get_L_pos(i)) : (get_L_pos(i + 1) - get_L_pos(i));
     }
 
+    bool is_L_head(ulint i)
+    {
+        return L_heads[i];
+    }
+
+    sdsl::sd_vector<>& get_L_heads()
+    {
+        return L_heads;
+    }
+
     void bwt_stats()
     {
         log("Number of BWT equal-letter runs: r = ", r);
@@ -293,7 +302,6 @@ public:
     */
     size_t serialize(std::ostream &out, sdsl::structure_tree_node *v = nullptr, std::string name ="")
     {
-        sdsl::structure_tree_node *child = sdsl::structure_tree::add_child(v, name, sdsl::util::class_name(*this));
         size_t written_bytes = 0;
 
         out.write((char *)&n, sizeof(n));
@@ -302,12 +310,12 @@ public:
         out.write((char *)&r, sizeof(r));
         written_bytes += sizeof(r);
 
-        written_bytes += L_heads.serialize(out, v, "L_heads");
+        written_bytes += L_heads.serialize(out);
 
         // TODO use read_vec
         for(size_t i = 0; i < r; ++i)
         {
-            written_bytes += FL_runs[i].serialize(out, v, "FL_run_" + std::to_string(i));
+            written_bytes += FL_runs[i].serialize(out);
         }
 
         return written_bytes;
@@ -318,8 +326,6 @@ public:
     */
     void load(std::istream &in)
     {
-        size_t size;
-
         in.read((char *)&n, sizeof(n));
         in.read((char *)&r, sizeof(r));
 

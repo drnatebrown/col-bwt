@@ -25,10 +25,10 @@ namespace Options {
 
     /* How to handle overlapping runs */
     enum class Overlap {
+        Append,  // Keep existing col_run, split to include non-overlapping parts of col run to be added
         Split,  // Split on overlaps (keep all non-overlapping parts even if it segments into multiple runs)
         Remove, // Remove the entirety of any col run with overlaps
-        Ignore, // Remove run which overlaps with existing col run (FCFS)
-        Append  // Keep existing col_run, split to include non-overlapping parts of col run to be added
+        Ignore // Remove run which overlaps with existing col run (FCFS)
         // Largest -> maximize coverage
     };
 }
@@ -41,11 +41,11 @@ public:
 
     col_split() {}
 
-    col_split(FL_t& t) : tbl(t), n(tbl.size()) {}
+    col_split(FL_t& t) : tbl(t), n(tbl.size()), r(tbl.runs()) {}
 
-    col_split(FL_t& t, Mode m, Overlap o = Overlap::Split) : tbl(t), n(tbl.size()), mode(m), overlap(o) {}
+    col_split(FL_t& t, Mode m, Overlap o = Overlap::Append) : tbl(t), n(tbl.size()), r(tbl.runs()), mode(m), overlap(o) {}
 
-    col_split(FL_t& t, Overlap o, Mode m = Mode::Default) : tbl(t), n(tbl.size()), mode(m), overlap(o) {}
+    col_split(FL_t& t, Overlap o, Mode m = Mode::Default) : tbl(t), n(tbl.size()), r(tbl.runs()), mode(m), overlap(o) {}
 
     void set_mode(Mode m) {
         mode = m;
@@ -55,6 +55,8 @@ public:
         overlap = o;
     }
 
+    // Split bases on Co-linear positions and lengths; assuming they have uniform height N
+    // Split rate: split at this rate while forward stepping to carve out runs (all run aligned cols are split anyway)
     void split(vector<ulint> &col_len, vector<ulint> &col_pos, ulint N, int split_rate = 1) {
         assert(col_len.size() == col_pos.size());
 
@@ -62,6 +64,13 @@ public:
         bitvec col_run_bv(n);
         // TODO use O(r') data structure for col_ids (linked list)
         vector<ulint> col_ids(n, 0);
+
+        // Mark all ids which would have been split if split rate was 1
+        // used to idenitfy run-aligned cols
+        phantom_ids = phantom_ids_t(n, split_rate);
+        // TODO destroy phantom_ids on exit
+        // TODO find run aligned during computation to avoid O(run_len) scans
+        // TODO for memory efficiency, use phantom_id bools and flip (keep col_ids true, use phantom_ids for false 0s, etc)
         status();
 
         status("FL Stepping");
@@ -89,7 +98,8 @@ public:
                         ulint col_span_end = idx + rg.offset + rg.height;
 
                         // Has boundary overlap, so skip computation for ignore/remove modes
-                        bool skip_overlap = (overlap == Overlap::Remove || overlap == Overlap::Ignore) && (col_ids[col_span_start] > 1 || col_ids[col_span_end - 1] > 1);
+                        bool skip_overlap = (overlap == Overlap::Remove || overlap == Overlap::Ignore) && 
+                            (col_ids[col_span_start] > 1 || col_ids[col_span_end - 1] > 1);
                         if (skip_overlap)
                         {
                             overlap_skip(col_ids, col_run_bv, col_span_start, col_span_end);
@@ -104,6 +114,7 @@ public:
                                     switch (overlap) {
                                         case Overlap::Split:
                                             col_ids[l] = 1; // mark overlaps
+                                            phantom_ids.set(l, 1);
                                             col_run_bv.unset(l); // Erase any col runs here; they have overlaps
 
                                             /*
@@ -123,12 +134,19 @@ public:
                                     }
                                 }
                                 else {
-                                    col_ids[l] = c_id;
+                                    if (j % split_rate == 0) {
+                                        col_ids[l] = c_id;
+                                    }
+                                    else {
+                                        col_ids[l] = 0;
+                                    }
+
+                                    phantom_ids.set(l, c_id);
                                 }
 
                                 // Skip the rest of the loop if this col run is no longer being considered
                                 if (!skip_overlap) {
-                                    bool split_rate_met = j % split_rate == 0 && col_ids[l] == c_id;
+                                    bool split_rate_met = j % split_rate == 0 && (col_ids[l] == c_id || last_id == c_id);
                                     if (last_id != col_ids[l] && (split_rate_met || force_split)) {
                                         col_run_bv.set(l);
                                     }
@@ -140,22 +158,21 @@ public:
                                 }
                             }
                             
-                            if (col_span_end < n) {
+                            // Close run if needed
+                            if (!skip_overlap && col_span_end < n) {
+                                last_id = col_ids[col_span_end - 1];
                                 bool id_mismatch = (last_id != col_ids[col_span_end]);
-                                bool split_rate_met = (j % split_rate == 0);
+                                bool split_rate_met = (j % split_rate == 0) && (last_id == c_id);
                                 bool need_run_end = false;
-                                switch(overlap) {
-                                    case Overlap::Split: {
-                                        // End the current run if:
-                                        // i) we are at the end of a run of overlapping characters and the next is not overlapping
-                                        // ii) we are at the end of a run of non-overlapping characters and the next id does not match
-                                        bool force_split = (last_id > 1 || col_ids[col_span_end] > 0);
-                                        need_run_end = id_mismatch && (force_split || split_rate_met);
-                                        break;
-                                    }
-                                    default:
-                                        need_run_end = id_mismatch && split_rate_met;
-                                        break;
+                                if (overlap == Overlap::Split) {
+                                    // End the current run if:
+                                    // i) we are at the end of a run of overlapping characters and the next is not overlapping
+                                    // ii) we are at the end of a run of non-overlapping characters and the next id does not match
+                                    bool force_split = (last_id > 1 || col_ids[col_span_end] > 0);
+                                    need_run_end = id_mismatch && (force_split || split_rate_met);
+                                }
+                                else {
+                                    need_run_end = id_mismatch && split_rate_met;
                                 }
 
                                 if (need_run_end) {
@@ -219,14 +236,6 @@ public:
     }
 
 private:
-    Mode mode = Mode::Default;
-    Overlap overlap = Overlap::Split;
-
-    FL_t& tbl;
-    ulint n = 0;
-    sd_vector<> col_runs;
-    vector<ulint> col_run_ids;
-
     typedef struct {
         ulint interval;
         ulint offset;
@@ -258,6 +267,42 @@ private:
             bv[idx] = 0;
         }
     };
+
+    struct phantom_ids_t{
+        vector<ulint> p_ids;
+        bool split_rate_used = false;
+
+        phantom_ids_t() : p_ids(), split_rate_used(false) {}
+
+        phantom_ids_t(size_t n, int split_rate) : split_rate_used(split_rate > 1) {
+            if (split_rate_used) {
+                p_ids = vector<ulint>(n, 0);
+            }
+        }
+
+        vector<ulint>& get_vec() {
+            if (!split_rate_used) {
+                error("Attempting to access p_ids when split_rate_used is false");
+            }
+            return p_ids;
+        }
+
+        void set(size_t idx, ulint id) {
+            if (split_rate_used) {
+                p_ids[idx] = id;
+            }
+        }
+    };
+
+    FL_t& tbl;
+    ulint n = 0;
+    ulint r = 0;
+    Mode mode = Mode::Default;
+    Overlap overlap = Overlap::Append;
+
+    sd_vector<> col_runs;
+    vector<ulint> col_run_ids;
+    phantom_ids_t phantom_ids;
 
     vector<range> FL_range(range rg) {
         vector<range> FL_dest_ranges;
@@ -306,26 +351,44 @@ private:
             size_t curr_pos = col_span_start;
             size_t colliding_id = col_ids[curr_pos];
             while (curr_pos > 0 && col_ids[curr_pos - 1] == colliding_id) {
-                col_ids[curr_pos] = 1;
-                col_run_bv.unset(curr_pos);
+                col_ids[curr_pos - 1] = 1;
+                phantom_ids.set(curr_pos - 1, 1);
+                col_run_bv.unset(curr_pos - 1);
                 --curr_pos;
             }
+            if (curr_pos > 0 && col_ids[curr_pos - 1] > 1) {
+                if (col_ids[curr_pos - 1] > 1) {
+                    col_run_bv.set(curr_pos);
+                }
+                else {
+                    col_run_bv.unset(curr_pos);
+                }
+            }
         }
-        // Remove overlapping run moving downwards  (only occurs if col_span_end - 1 is new overlap)      
+
+        // Remove overlapping run moving downwards (only occurs if col_span_end - 1 is new overlap)      
         if (col_ids[col_span_end - 1] > 1) {
             size_t curr_pos = col_span_end;
             size_t colliding_id = col_ids[curr_pos];
             while (curr_pos < n && col_ids[curr_pos] == colliding_id) {
                 col_ids[curr_pos] = 1;
+                phantom_ids.set(curr_pos, 1);
                 col_run_bv.unset(curr_pos);
                 ++curr_pos;
+            }
+            if (curr_pos < n && col_ids[curr_pos + 1] <= 1) {
+                col_run_bv.unset(curr_pos);
             }
         }
 
         // Mark current run as overlapping
         for (size_t curr_pos = col_span_start; curr_pos < col_span_end; ++curr_pos) {
             col_ids[curr_pos] = 1;
+            phantom_ids.set(curr_pos, 1);
             col_run_bv.unset(curr_pos);
+        }
+        if (col_span_start > 0 && col_ids[col_span_start - 1] > 1) {
+            col_run_bv.set(col_span_start);
         }
     }
 
@@ -333,7 +396,11 @@ private:
         // Ignore current col run by undoing work so far
         for (size_t curr_pos = col_span_start; curr_pos < col_span_curr; ++curr_pos) {
             col_ids[curr_pos] = 0;
+            phantom_ids.set(curr_pos, 0);
             col_run_bv.unset(curr_pos);
+        }
+        if (col_span_start > 0 && col_ids[col_span_start - 1] > 1) {
+            col_run_bv.set(col_span_start);
         }
     }
 
@@ -347,6 +414,7 @@ private:
 
         sd_select col_select;
         // Don't need bitvector, only aligns to existing runs
+        // TODO can borrow existing sparse bv from FL
         if (mode == Mode::RunAligned) {
             col_run_bv = bitvec(n);
         }
@@ -367,6 +435,7 @@ private:
         size_t set_bits = col_run_bv.set_bits();
 
         // To keep track of L_runs
+        const vector<ulint> &run_ids = (split_rate > 1) ? phantom_ids.get_vec() : col_ids;
         size_t curr_L_run = 0;
         size_t curr_L_len = tbl.get_L_length(curr_L_run);
         size_t curr_L_pos = 0;
@@ -375,33 +444,33 @@ private:
         // TODO refactor to not add runs if not needed
         auto process_bwt_runs = [&](size_t idx) {
             while (curr_L_run < tbl.runs() && curr_L_pos < idx) {
-                bool run_aligned = false;
-                // only check if run aligned mode or no id to assign
-                bool check_run_aligned = (mode == Mode::RunAligned || last_id == 0);
-                if (check_run_aligned && col_ids[curr_L_pos] > 1 && (col_ids[curr_L_pos] == col_ids[curr_L_pos + curr_L_len - 1])) {
-                    ulint curr_id = col_ids[curr_L_pos];
-                    run_aligned = true;
-                    for (size_t j = curr_L_pos + 1; j < curr_L_pos + curr_L_len - 1 && run_aligned; ++j) {
-                        run_aligned = (col_ids[j] == curr_id);
+                if (mode == Mode::RunAligned || !col_run_bv[curr_L_pos]) {
+                    bool run_aligned = false;
+                    bool intersects_col_split = (idx < n) && (idx < curr_L_pos + curr_L_len);
+                    // only check if run aligned mode or no id to assign, and ensure we do not intersect a colored split
+                    bool check_run_aligned = mode == Mode::RunAligned || (last_id == 0 && !intersects_col_split);
+                    if (check_run_aligned && run_ids[curr_L_pos] > 1 && (run_ids[curr_L_pos] == run_ids[curr_L_pos + curr_L_len - 1])) {
+                        ulint curr_id = run_ids[curr_L_pos];
+                        run_aligned = true;
+                        for (size_t j = curr_L_pos + 1; j < curr_L_pos + curr_L_len - 1 && run_aligned; ++j) {
+                            run_aligned = (run_ids[j] == curr_id);
+                        }
                     }
-                }
 
-                if (run_aligned) {
-                    col_run_bv.set(curr_L_pos);
-                    add_col_run_id(col_ids[curr_L_pos]);
-                    
-                    #ifdef PRINT_STATS
-                    if (mode == Mode::RunAligned) {
+                    if (run_aligned) {
+                        col_run_bv.set(curr_L_pos);
+                        add_col_run_id(run_ids[curr_L_pos]);
+                        
+                        #ifdef PRINT_STATS
                         col_chars += curr_L_len;
                         ++num_col_bits;
+                        #endif
                     }
-                    #endif
-                }
-                else {
-                    // Don't print last id if it was not run aligned, just end the run
-                    ulint curr_id = (mode == Mode::RunAligned) ? 0 : last_id;
-                    col_run_bv.set(curr_L_pos);
-                    add_col_run_id(curr_id);
+                    else {
+                        ulint curr_id = (mode == Mode::RunAligned) ? 0 : last_id;
+                        col_run_bv.set(curr_L_pos);
+                        add_col_run_id(curr_id);
+                    }
                 }
 
                 ++curr_L_run;
@@ -417,9 +486,9 @@ private:
                 size_t idx = col_select(i);
 
                 // if subsampling, look for run aligned runs to add (does not add runs compared BWT runs)
-                // if (split_rate > 1) {
-                //     process_bwt_runs(idx);
-                // }
+                if (split_rate > 1) {
+                    process_bwt_runs(idx);
+                }
 
                 // Add other non-run aligned
                 add_col_run_id(col_ids[idx]);
@@ -440,9 +509,9 @@ private:
             }
             #endif
         }
-        // if (split_rate > 1 || mode == Mode::RunAligned) {
-        //     process_bwt_runs(n);
-        // }
+        if (split_rate > 1 || mode == Mode::RunAligned) {
+            process_bwt_runs(n);
+        }
         status();
 
         // Need to remake runs bv if changes were made
@@ -453,22 +522,9 @@ private:
         }
 
         #ifdef PRINT_STATS
-        cout << "Col bits: " << num_col_bits << std::endl;
+        cout << "Col ids: " << num_col_bits << std::endl;
         cout << "Col chars: " << col_chars << std::endl;
         #endif
-
-        col_chars = 0;
-        size_t run_count = 1;
-        for (size_t i = 0; i < col_ids.size(); ++i) {
-            col_chars += col_ids[i] > 1;
-            if (i > 0) {
-                if (col_ids[i] != col_ids[i - 1]) {
-                    ++run_count;
-                }
-            }
-        }
-        cout << "Col chars: " << col_chars << std::endl;
-        cout << "Run count: " << run_count << std::endl;
     }
 
     void add_col_run_id(ulint id) {

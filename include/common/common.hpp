@@ -22,6 +22,7 @@
 #ifndef _COMMON_HH
 #define _COMMON_HH
 
+#include <csignal>
 #include <cstdlib>
 #include <cstdio>
 #include <ctime>
@@ -89,6 +90,12 @@ inline std::string indent() {
 
 inline void error(const std::string& msg) {
     std::cerr << "[ERROR]: " << msg << std::endl;
+}
+
+inline void terminal_error(const std::string& msg) {
+    std::cerr << "[ERROR]: " << msg << std::endl;
+    throw std::runtime_error(msg);
+    std::exit(EXIT_FAILURE);
 }
 
 inline void message(const std::string& msg, bool header = true) {
@@ -198,10 +205,13 @@ struct Args
 {
     std::string filename = "";
     std::string pattern_filename = "";
+    std::string split_mode = "default";
+    std::string overlap = "append";
     bool rle = true; // read in RLBWT
     bool verbose = false; // verbose output
     bool long_pattern = false; // write statistics direct to file
     int N = 0; // size of collection
+    int split_rate = 1; // split rate
 };
 
 void parseArgs(int argc, char *const argv[], Args &arg)
@@ -211,7 +221,7 @@ void parseArgs(int argc, char *const argv[], Args &arg)
     extern int optind;
 
     std::string sarg;
-    while ((c = getopt(argc, argv, "rvlN:p:")) != -1)
+    while ((c = getopt(argc, argv, "rvlN:p:m:s:o:")) != -1)
     {
         switch (c)
         {
@@ -228,6 +238,16 @@ void parseArgs(int argc, char *const argv[], Args &arg)
         case 'N':
             sarg.assign(optarg);
             arg.N = std::stoi(sarg);
+            break;
+        case 's':
+            sarg.assign(optarg);
+            arg.split_rate = std::stoi(sarg);
+            break;
+        case 'm':
+            arg.split_mode.assign(optarg);
+            break;
+        case 'o':
+            arg.overlap.assign(optarg);
             break;
         case 'p':
             arg.pattern_filename.assign(optarg);
