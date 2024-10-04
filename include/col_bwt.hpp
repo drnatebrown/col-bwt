@@ -44,8 +44,12 @@ public:
 
     col_row() {}
 
-    col_row(uchar c, ulint ix, ulint in, ulint o, ulint id)
-        : LF_row(c, ix, in, o), col_id(id) {}
+    col_row(uchar c, ulint ix, ulint in, ulint o, ulint id) : LF_row(c, ix, in, o) {
+        if (id >= id_max) {
+            id = (id % (id_max - 1)) + 1;
+        }
+        col_id = id;
+    }
 
     size_t serialize(std::ostream &out)
     {
@@ -68,6 +72,9 @@ public:
 
         LF_row::load(in);
     }
+private:
+    static const ulint id_max = bit_max(ID_BITS);
+
 } __attribute__((packed));
 
 // Row of the LF table using thresholds

@@ -78,7 +78,7 @@ public:
             in.read((char *)&temp, BWT_BYTES);
             offset = temp;
         }
-    };
+    } __attribute__((packed));
 
 
     FL_table() {}
@@ -96,7 +96,7 @@ public:
         vector<vector<ulint>> char_runs = vector<vector<ulint>>(256); // Vector containing lengths for runs of certain character
 
         status("Constructing BWT table (FL)");
-        char c;
+        char c = 0;
         n = 0;
         ulint i = 0;
         while ((c = heads.get()) != EOF)
@@ -312,11 +312,7 @@ public:
 
         written_bytes += L_heads.serialize(out);
 
-        // TODO use read_vec
-        for(size_t i = 0; i < r; ++i)
-        {
-            written_bytes += FL_runs[i].serialize(out);
-        }
+        written_bytes += write_vec(FL_runs, out);
 
         return written_bytes;
     }
@@ -332,12 +328,8 @@ public:
         L_heads.load(in);
         L_heads_select = sd_select(&L_heads);
 
-        // TODO use writevec
         FL_runs = std::vector<FL_row>(r);
-        for(size_t i = 0; i < r; ++i)
-        {
-            FL_runs[i].load(in);
-        }
+        read_vec(FL_runs, in);
     }
     
 protected:

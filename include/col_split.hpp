@@ -219,8 +219,8 @@ public:
     /* Space saving option to mod the values before saving */
     size_t save(string filename, int id_bits=ID_BITS) {
         assert (id_bits <= sizeof(ulint) * 8);
-        ulint id_max = 1ULL << id_bits;
-        ulint id_bytes = (id_bits + 7) / 8; // bytes needed to store id
+        ulint id_max = bit_max(id_bits);
+        ulint id_bytes = bits_to_bytes(id_bits); // bytes needed to store id
 
         size_t written_bytes = 0;
 
@@ -228,7 +228,10 @@ public:
 
         std::ofstream out_ids(filename + ".col_ids");
         for (size_t i = 0; i < col_run_ids.size(); ++i) {
-            size_t id = col_run_ids[i] % id_max;
+            size_t id = col_run_ids[i];
+            if (id >= id_max) {
+                id = (id % (id_max - 1)) + 1;
+            }
             out_ids.write(reinterpret_cast<const char*>(&id), id_bytes);
             written_bytes += id_bytes;
         }
@@ -481,6 +484,7 @@ private:
             }
         };
 
+        // TODO add BWT runs as well
         if (mode != Mode::RunAligned) {
             for (size_t i = 1; i <= set_bits; ++i) {
                 size_t idx = col_select(i);

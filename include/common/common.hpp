@@ -45,7 +45,9 @@
 /* CONFIGURABLE */
 #define RW_BYTES 5
 #define BWT_BYTES 5
-#define ID_BITS 40
+#ifndef ID_BITS
+    #define ID_BITS 32
+#endif
 #define ASCII_SIZE 256
 #define PRINT_STATS
 #define MULTI_THREAD
@@ -61,7 +63,7 @@
 #endif
 
 #define BWT_BITS (BWT_BYTES * 8)
-#define ID_BYTES ((ID_BITS + 7) / 8)
+#define ID_BYTES bits_to_bytes(ID_BITS)
 
 bool verbose = false;
 
@@ -290,6 +292,10 @@ uint8_t bitsize(uint64_t x){
 
 ulint bits_to_bytes(const ulint bits){
     return (bits + 7) / 8;
+}
+
+ulint bit_max(const ulint bits){
+    return 1ULL << bits;
 }
 
 template <typename T>
