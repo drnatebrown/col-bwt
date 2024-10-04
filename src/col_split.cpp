@@ -80,19 +80,19 @@ int main(int argc, char *const argv[])
         return 1;
     }
 
-    // message("Loading BWT table supporting FL mapping: ");
-    // timer.start();
+    message("Loading BWT table supporting FL mapping: ");
+    timer.start();
 
-    // FL_table tbl;
-    // std::string filename_tbl = args.filename + tbl.get_file_extension();
-    // ifstream fs_tbl(filename_tbl);
-    // tbl.load(fs_tbl);
+    FL_table tbl;
+    std::string filename_tbl = args.filename + tbl.get_file_extension();
+    ifstream fs_tbl(filename_tbl);
+    tbl.load(fs_tbl);
 
-    // tbl.bwt_stats();
+    tbl.bwt_stats();
 
-    // timer.end();
-    // submessage("Load Complete");
-    // timer.startTime();
+    timer.end();
+    submessage("Load Complete");
+    timer.startTime();
 
     timer.mid();
     message("Loading COL Positions: ");
@@ -112,48 +112,42 @@ int main(int argc, char *const argv[])
         mum_file.read(reinterpret_cast<char*>(&match_lens[i]), RW_BYTES);
         mum_file.read(reinterpret_cast<char*>(&match_pos[i]), RW_BYTES);
 
-        if (i > 0 && match_pos[i] - match_pos[i-1] < args.N) {
-            cout << "COL positions are not sorted or are too close together" << endl;
-            cout << "Position " << i << ": " << match_pos[i] - args.N << " - " << match_pos[i-1] - args.N << " = " << match_pos[i] - match_pos[i-1] << endl;
-        }
-        // cout << match_pos[i] - args.N << endl;
-
         // Discard the next two values
         mum_file.read(discard, RW_BYTES);
         mum_file.read(discard, RW_BYTES);
     }
 
     timer.end();
-    // submessage("Load Complete");
-    // timer.midTime();
+    submessage("Load Complete");
+    timer.midTime();
 
-    // message("Splitting runs based on COL Positions using FL Table");
-    // timer.mid();
+    message("Splitting runs based on COL Positions using FL Table");
+    timer.mid();
 
-    // Options::Mode mode = parse_mode(args);
-    // Options::Overlap overlap = parse_overlap(args);
-    // log("N, # sequences in collection: ", args.N);
-    // log("Split rate: ", args.split_rate);
+    Options::Mode mode = parse_mode(args);
+    Options::Overlap overlap = parse_overlap(args);
+    log("N, # sequences in collection: ", args.N);
+    log("Split rate: ", args.split_rate);
 
-    // col_split<> split_ds(tbl, mode, overlap);
-    // split_ds.split(match_lens, match_pos, args.N, args.split_rate);
+    col_split<> split_ds(tbl, mode, overlap);
+    split_ds.split(match_lens, match_pos, args.N, args.split_rate);
 
-    // timer.end();
-    // submessage("Splitting Complete");
-    // timer.midTime();
+    timer.end();
+    submessage("Splitting Complete");
+    timer.midTime();
 
-    // message("Serializing COL runs bitvector and IDs");
-    // timer.mid();
+    message("Serializing COL runs bitvector and IDs");
+    timer.mid();
 
-    // split_ds.save(args.filename);
+    split_ds.save(args.filename);
 
-    // timer.end();
-    // submessage("Serialization Complete");
-    // timer.midTime();
+    timer.end();
+    submessage("Serialization Complete");
+    timer.midTime();
 
-    // message("Done", false);
-    // mem_peak();
-    // timer.startTime();
+    message("Done", false);
+    mem_peak();
+    timer.startTime();
 
     return 0;
 }
