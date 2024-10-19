@@ -12,7 +12,7 @@
     along with this program.  If not, see http://www.gnu.org/licenses/ .
 */
 /*!
-   \file cil_split.cpp
+   \file cid_split.cpp
    \brief Builds table supporting first-to-last mapping of BWT
    \author Nathaniel Brown
    \date 06/13/2024
@@ -139,7 +139,7 @@ int main(int argc, char *const argv[])
     message("Serializing COL runs bitvector and IDs");
     timer.mid();
 
-    split_ds.save(args.filename);
+    // split_ds.save(args.filename);
 
     timer.end();
     submessage("Serialization Complete");
