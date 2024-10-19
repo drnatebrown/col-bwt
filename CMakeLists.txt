@@ -32,7 +32,7 @@ endif()
 # Set C++ Standard.
 set(CMAKE_CXX_STANDARD 17)
 
-set(ID_BITS 40 CACHE STRING "Number of bits for ID")
+set(ID_BITS 8 CACHE STRING "Number of bits for ID")
 add_definitions(-DID_BITS=${ID_BITS})
 
 # Set the actual flags.
