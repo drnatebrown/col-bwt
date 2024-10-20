@@ -74,6 +74,9 @@ typedef unsigned char uchar;
 typedef typename sdsl::sd_vector<>::select_1_type sd_select;
 typedef typename sdsl::sd_vector<>::rank_1_type sd_rank;
 
+typedef typename sdsl::bit_vector::select_1_type bit_select;
+typedef typename sdsl::bit_vector::rank_1_type bit_rank;
+
 //*********************** Message options ***************************************
 
 template <typename T>
@@ -293,10 +296,6 @@ uint8_t bitsize(uint64_t x){
 ulint bits_to_bytes(const ulint bits){
     return (bits + 7) / 8;
 }
-
-// ulint bit_max(const ulint bits){
-//     return 1ULL << bits;
-// }
 
 constexpr ulint bit_max(ulint bits) {
     return 1ULL << bits;

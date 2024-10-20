@@ -39,12 +39,8 @@ Options::Mode parse_mode(Args &args) {
     } else if (args.split_mode == "tunnels") {
         log("Split mode: Tunnels (find col runs which form BWT tunnels)");
         mode = Options::Mode::Tunneled;
-    } else if (args.split_mode == "runs") {
-        log("Split mode: Runs (find col runs which are BWT run aligned, using split rate = 1)");
-        args.split_rate = 1;
-        mode = Options::Mode::RunAligned;
     } else {
-        terminal_error("Invalid split mode: " + args.split_mode + ". Must be one of: default, tunnels, runs");
+        terminal_error("Invalid split mode: " + args.split_mode + ". Must be one of: default, tunnels");
     }
     return mode;
 }
@@ -53,18 +49,12 @@ Options::Overlap parse_overlap(Args &args) {
     Options::Overlap overlap_mode;
     if (args.overlap == "split") {
         log("Overlap mode: Split (split col runs at overlap)");
-        overlap_mode = Options::Overlap::Ignore;
-    } else if (args.overlap == "remove") {
-        log("Overlap mode: Remove (remove overlapping col runs)");
-        overlap_mode = Options::Overlap::Remove;
-    } else if (args.overlap == "ignore") {
-        log("Overlap mode: Ignore (ignore overlapping col runs, keep existing)");
-        overlap_mode = Options::Overlap::Ignore;
+        overlap_mode = Options::Overlap::Split;
     } else if (args.overlap == "append") {
         log("Overlap mode: Append (append overlapping col runs after existing)");
         overlap_mode = Options::Overlap::Append;
     } else {
-        terminal_error("Invalid overlap mode: " + args.overlap + ". Must be one of: split, remove, ignore, append");
+        terminal_error("Invalid overlap mode: " + args.overlap + ". Must be one of: split, append");
     }
     return overlap_mode;
 }
