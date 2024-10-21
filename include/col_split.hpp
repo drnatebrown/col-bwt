@@ -5,6 +5,7 @@
 #include <cstddef>
 #include <fstream>
 #include <optional>
+#include <queue>
 #include <r_index.hpp>
 #include <unordered_map>
 
@@ -57,23 +58,113 @@ public:
     void split(vector<ulint> &col_len, vector<ulint> &col_pos, ulint N, int split_rate = 1) {
         assert(col_len.size() == col_pos.size());
 
-        status("Initializing vectors");
-        bitvec col_run_bv(n, N);
-        std::unordered_map<ulint, ulint> col_ids;
+        status("Initializing n sized bitvector");
+        bitvec mark_start_bv(n);
+        // std::map<ulint, std::pair<ulint,ulint>> mark_ids;
+        // mark_ids.reserve(tbl.runs()*2);
         status();
 
-        auto set_id = [&col_run_bv, &col_ids](ulint idx, ulint id) {
-            col_run_bv.set(idx);
-            col_ids[idx] = id;
+        // auto set_id = [&mark_start_bv, &mark_ids](ulint idx, ulint id, ulint height) {
+        // auto set_id = [&mark_ids](ulint idx, ulint id, ulint height) {
+        //     // mark_start_bv.set(idx);
+        //     mark_ids[idx] = {id, height};
+        // };
+        // auto set_id = [&mark_start_bv](ulint idx, ulint id, ulint height) {
+        //     mark_ids[idx] = 1;
+        // };
+        auto set_id = [&mark_start_bv](ulint idx, ulint id, ulint height) {
+            mark_start_bv.set(idx);
         };
 
-        status("FL Stepping");
+
+        status("FL Stepping to find interval boundaries");
         size_t run_start = 0;
         size_t c_id = 2; // 0 denotes to id, 1 denotes overlap
         vector<ulint>::iterator c_pos = col_pos.begin();
         vector<ulint>::iterator c_len = col_len.begin();
 
         // first pass finds col run boundaries
+        // for (size_t i = 0; i < tbl.runs(); ++i) {
+        //     ulint run_len = tbl.get_length(i);
+
+        //     // TODO Fix - N on mumemto and col_bwt side
+        //     while (c_pos != col_pos.end() && *c_pos - N < run_start + run_len) {
+        //         range rg = {i, *c_pos - N - run_start, N};
+        //         vector<range> FL_ranges = FL_range(rg);
+
+        //         bool skip_non_tunnel = (mode == Mode::Tunneled) && FL_ranges.size() > 1;
+        //         for (size_t j = 0; j < *c_len && !skip_non_tunnel; ++j) {
+        //             vector<range> next_ranges;
+        //             for (size_t k = 0; k < FL_ranges.size(); ++k) {
+        //                 rg = FL_ranges[k];
+
+        //                 if (j % split_rate == 0) 
+        //                 {
+        //                     ulint idx = tbl.get_idx(rg.interval);
+        //                     ulint col_span_start = idx + rg.offset;
+        //                     // ulint col_span_end = idx + rg.offset + rg.height;
+
+        //                     // Handle overlaps (can't have multiple ranges from same position)
+        //                     // if (mode == Mode::Default && mark_start_bv[col_span_start]) {
+        //                     if (mode == Mode::Default) {
+        //                         auto id_it = mark_ids.find(col_span_start);
+        //                         if (id_it != mark_ids.end()) {
+        //                             // auto [existing_id, existing_height] = mark_ids[col_span_start];
+        //                             auto [existing_id, existing_height] = id_it->second;
+
+        //                             ulint curr_pos = col_span_start;
+        //                             ulint min_height = std::min(existing_height, rg.height);
+        //                             ulint max_height = std::max(existing_height, rg.height);
+        //                             ulint new_id = (existing_height >= rg.height) ? existing_id : c_id;
+
+        //                             while (new_id > 1 && min_height > 0) {
+        //                                 if (overlap == Overlap::Split) {
+        //                                     // set_id(curr_pos, 1, min_height);
+        //                                     mark_ids[curr_pos] = {1, min_height};
+        //                                 }
+        //                                 curr_pos += min_height;
+        //                                 max_height -= min_height;
+        //                                 min_height = 0;
+        //                                 id_it = mark_ids.find(curr_pos);
+        //                                 // if (mark_start_bv[curr_pos]) {
+        //                                 if (id_it != mark_ids.end()) {
+        //                                     // auto [existing_id, existing_height] = mark_ids[curr_pos];
+        //                                     auto [existing_id, existing_height] = id_it->second;
+        //                                     min_height = std::min(existing_height, max_height);
+        //                                     max_height = std::max(existing_height, max_height);
+        //                                     new_id = (existing_height >= max_height) ? existing_id : new_id;
+        //                                 }
+        //                                 else if (max_height > 0) {
+        //                                     // set_id(curr_pos, new_id, max_height);
+        //                                     mark_ids[curr_pos] = {new_id, max_height};
+        //                                 }
+        //                             }
+        //                         }
+        //                         else {
+        //                             // set_id(col_span_start, c_id, rg.height);
+        //                             mark_ids[col_span_start] = {c_id, rg.height};
+        //                         }
+        //                     }
+        //                     // Tunnel case is easy, just mark the col run
+        //                     else {
+        //                         // set_id(col_span_start, c_id, rg.height);
+        //                         mark_ids[col_span_start] = {c_id, rg.height};
+        //                     }
+        //                 }
+                        
+        //                 vector<range> curr_ranges = FL_range(rg);
+        //                 next_ranges.insert(next_ranges.end(), curr_ranges.begin(), curr_ranges.end());
+        //             }
+        //             FL_ranges = next_ranges;
+        //             skip_non_tunnel = (mode == Mode::Tunneled) && FL_ranges.size() > 1;
+        //         }
+        //         ++c_pos;
+        //         ++c_len;
+        //         ++c_id;
+        //     }
+        //     run_start += run_len;
+        // }
+
         for (size_t i = 0; i < tbl.runs(); ++i) {
             ulint run_len = tbl.get_length(i);
 
@@ -92,28 +183,66 @@ public:
                         {
                             ulint idx = tbl.get_idx(rg.interval);
                             ulint col_span_start = idx + rg.offset;
-                            ulint col_span_end = idx + rg.offset + rg.height;
+                            set_id(col_span_start, c_id, rg.height);
+                        }
+                        
+                        vector<range> curr_ranges = FL_range(rg);
+                        next_ranges.insert(next_ranges.end(), curr_ranges.begin(), curr_ranges.end());
+                    }
+                    FL_ranges = next_ranges;
+                    skip_non_tunnel = (mode == Mode::Tunneled) && FL_ranges.size() > 1;
+                }
+                ++c_pos;
+                ++c_len;
+                ++c_id;
+            }
+            run_start += run_len;
+        }
+        status();
 
-                            ulint mark_id = c_id;
-                            bool mark = true;
+        run_start = 0;
+        c_id = 2; // 0 denotes to id, 1 denotes overlap
+        c_pos = col_pos.begin();
+        c_len = col_len.begin();
 
-                            auto pred = col_run_bv.predecessor(col_span_start + 1);
-                            if (pred.has_value())
-                                set_marking_mode(mark_id, mark, col_ids[pred.value()], c_id);
-                            if (mark) 
-                                set_id(col_span_start, mark_id);
-                            
-                            for (size_t l = col_span_start + 1; l < col_span_end; ++l) {
-                                // Hit existing run
-                                if (col_run_bv[l]) {
-                                    set_marking_mode(mark_id, mark, col_ids[l], c_id);
-                                    if (mark) 
-                                        set_id(l, mark_id);
-                                }
+        status("Creating new vectors");
+        vector<std::pair<ulint,ulint>> marked_ids = vector<std::pair<ulint,ulint>>(mark_start_bv.set_bits(), {0,0});
+        bit_rank rank_start(&mark_start_bv.get_bv());
+        status();
+
+        status("FL Stepping to fill Col-ID Values");
+        // second pass fills them in
+        for (size_t i = 0; i < tbl.runs(); ++i) {
+            ulint run_len = tbl.get_length(i);
+
+            // TODO Fix - N on mumemto and col_bwt side
+            while (c_pos != col_pos.end() && *c_pos - N < run_start + run_len) {
+                range rg = {i, *c_pos - N - run_start, N};
+                vector<range> FL_ranges = FL_range(rg);
+
+                bool skip_non_tunnel = (mode == Mode::Tunneled) && FL_ranges.size() > 1;
+                for (size_t j = 0; j < *c_len && !skip_non_tunnel; ++j) {
+                    vector<range> next_ranges;
+                    for (size_t k = 0; k < FL_ranges.size(); ++k) {
+                        rg = FL_ranges[k];
+
+                        if (j % split_rate == 0) 
+                        {
+                            ulint idx = tbl.get_idx(rg.interval);
+                            ulint col_span_start = idx + rg.offset;
+                            // ulint col_span_end = idx + rg.offset + rg.height;
+
+                            // Handle overlaps (can't have multiple ranges from same position)
+                            if (mode == Mode::Default && mark_start_bv[col_span_start]) {
+                                size_t curr_rank = rank_start(col_span_start);
+                                auto [existing_id, existing_height] = marked_ids[curr_rank];
+                                size_t max_height = std::max(existing_height, rg.height);
+                                size_t max_id = (existing_height >= rg.height) ? existing_id : c_id;
+                                marked_ids[rank_start(col_span_start)] = {max_id, max_height};
                             }
-
-                            if (col_span_end < n && !col_run_bv[col_span_end]) {
-                                set_id(col_span_end, 0);
+                            // Tunnel case is easy, just mark the col run
+                            else {
+                                marked_ids[rank_start(col_span_start)] = {c_id, rg.height};
                             }
                         }
                         
@@ -131,8 +260,10 @@ public:
         }
         status();
 
-        // second pass resolves col run boundaries with bwt run boundaries
-        find_col_runs(col_ids, col_run_bv, split_rate);
+        // second pass resolves col run boundaries for overlaps and bwt run boundaries
+        // find_col_runs(mark_ids, mark_start_bv, split_rate);
+        // find_col_runs(mark_ids, split_rate);
+        find_col_runs(mark_start_bv, marked_ids, split_rate);
     }
 
     size_t save(string filename) {
@@ -177,11 +308,10 @@ private:
     struct bitvec {
         bit_vector bv;
         size_t set_count;
-        size_t max_search;
 
-        bitvec() : bv(), set_count(0), max_search(0) {}
+        bitvec() : bv(), set_count(0) {}
 
-        bitvec(size_t size, size_t search_bound) : bv(size), set_count(0), max_search(search_bound) {}
+        bitvec(size_t size) : bv(size), set_count(0) {}
 
         bool operator[](size_t idx) const { return bv[idx]; }
         bit_vector& get_bv() { return bv; }
@@ -200,7 +330,7 @@ private:
             bv[idx] = 0;
         }
 
-        std::optional<size_t> predecessor(size_t idx) const {
+        std::optional<size_t> predecessor(size_t idx, size_t max_search) const {
             for (size_t i = idx + 1; i > 0 && i >= idx - max_search + 1; --i) {
                 if (bv[i - 1]) {
                     return i - 1;
@@ -264,90 +394,271 @@ private:
     }
 
     // Finds col runs and computes col_run_ids and col_runs
-    void find_col_runs(std::unordered_map<ulint, ulint> &col_ids, bitvec &col_run_bv, int split_rate) {
-        #ifdef PRINT_STATS
-        size_t col_chars = 0;
-        size_t col_bwt_runs = 0;
-        size_t num_col_bits = 0;
-        size_t last_idx = 0;
-        #endif
-
-        if (col_run_bv.size() == 0) {
+    // void find_col_runs(std::unordered_map<ulint, std::pair<ulint, ulint>> &idx_col_ids, bitvec &idx_start_bv, int split_rate) {
+    // void find_col_runs(std::map<ulint, std::pair<ulint, ulint>> &idx_col_ids, int split_rate) {
+    void find_col_runs(bitvec &idx_start_bv, vector<std::pair<ulint,ulint>> &idx_col_ids, int split_rate) {
+        if (idx_start_bv.set_bits() == 0) {
             return;
         }
 
+        status("Loading BWT run support");
         col_runs = bit_vector(n, 0);
-        bit_select col_run_select(&col_run_bv.get_bv());
+        bit_select start_select(&idx_start_bv.get_bv());
+        bit_rank start_rank(&idx_start_bv.get_bv());
 
         sdsl::sd_vector<> bwt_runs = tbl.get_L_heads();
         sd_select bwt_run_select(&bwt_runs);
+        status();
 
-        size_t curr_bwt_pos = 0;
-        size_t col_iter = 1;
-        size_t next_col_pos = col_run_select(col_iter);  
-        size_t curr_id = 0;
-        size_t prev_id = 0;
+        struct interval {
+            ulint start;
+            ulint end;
+            ulint id;
 
-        auto process_col_run = [&]() {
-            if (curr_id > 1 || prev_id > 1) {
-                col_runs[next_col_pos] = 1;
-                col_run_ids.push_back(curr_id);
+            bool operator<(const interval &other) const {
+                return (end < other.end) || (end == other.end && start < other.start);
+            }
 
-                #ifdef PRINT_STATS
-                ++col_bwt_runs;
-                num_col_bits += curr_id > 1;
-
-                if (col_iter > 1 && col_ids[last_idx] > 1) {
-                    col_chars += curr_bwt_pos - last_idx;
-                }
-                last_idx = curr_bwt_pos;
-                #endif
+            bool operator>(const interval &other) const {
+                return (end > other.end) || (end == other.end && start > other.start);
             }
         };
 
-        for (size_t i = 1; i <= tbl.runs(); ++i) {
-            curr_bwt_pos = bwt_run_select(i);
+        std::priority_queue<interval, vector<interval>, greater<interval>> open_intervals;
+        size_t run_cursor = 1;
+        ulint curr_bwt_pos = bwt_run_select(run_cursor);
+        ulint last_id = 0;
 
-            ulint curr_id = 0;
-            while (curr_bwt_pos >= next_col_pos) {
-                curr_id = col_run_ids[col_iter - 1];
-                if (next_col_pos < curr_bwt_pos) {
-                    process_col_run();
-                }
-
-                ++col_iter;
-                next_col_pos = (col_iter <= col_run_bv.set_bits()) ? col_run_select(col_iter) : tbl.size();
+        auto update_bwt_pos = [&](size_t idx, ulint id = 0) {
+            while (run_cursor <= tbl.runs() && curr_bwt_pos < idx) {
+                col_runs[curr_bwt_pos] = 1;
+                add_col_run_id(last_id);
+                ++run_cursor;
+                curr_bwt_pos = bwt_run_select(run_cursor);
             }
-            col_runs[curr_bwt_pos] = 1;
-            col_run_ids.push_back(curr_id);
-            prev_id = curr_id;
+            if (curr_bwt_pos == idx) {
+                ++run_cursor;
+                curr_bwt_pos = bwt_run_select(run_cursor);
+            }
+            last_id = id;
+        };
 
-            #ifdef PRINT_STATS
-            ++col_bwt_runs;
-            num_col_bits += curr_id > 1;
-            last_idx = curr_bwt_pos;
-            #endif
+        auto update_col_ranges = [&](size_t idx) {
+            while (!open_intervals.empty() && open_intervals.top().end <= idx) {
+                interval e = open_intervals.top();
+                open_intervals.pop();
+                if (open_intervals.size() == 1 && open_intervals.top().end > e.end) {
+                    update_bwt_pos(e.end, open_intervals.top().id);
+                    col_runs[e.end] = 1;
+                    add_col_run_id(open_intervals.top().id);
+                }
+                else if (open_intervals.empty() && e.end < idx) {
+                    update_bwt_pos(e.end, 0);
+                    col_runs[e.end] = 1;
+                    add_col_run_id(0);
+                }
+            }
+        };
+
+        status("Finding intervals of col sub-runs");
+        for (size_t i = 1; i <= idx_start_bv.set_bits(); ++i) {
+        // for (const auto& [curr_start, col_id_height_pair] : idx_col_ids) {
+            size_t curr_start = start_select(i);
+            // auto [curr_col_id, curr_col_height] = idx_col_ids[curr_start];
+            // auto [curr_col_id, curr_col_height] = col_id_height_pair;
+            auto [curr_col_id, curr_col_height] = idx_col_ids[start_rank(curr_start)];
+
+            update_col_ranges(curr_start);
+
+            open_intervals.push({curr_start, curr_start + curr_col_height, curr_col_id});
+            if (open_intervals.size() == 1 && curr_col_id > 1) {
+                update_bwt_pos(curr_start, curr_col_id);
+                col_runs[curr_start] = 1;
+                add_col_run_id(curr_col_id);
+            }
         }
-        while(col_iter <= col_run_bv.set_bits()) {
-            curr_id = col_run_ids[col_iter - 1];
-            process_col_run();
-            ++col_iter;
-            next_col_pos = (col_iter <= col_run_bv.set_bits()) ? col_run_select(col_iter) : tbl.size();
-        }
+        update_col_ranges(n);
+        update_bwt_pos(n, 0);
+        status();
+
+        /* TODO fix split mode */
+        // for (size_t i = 1; i <= idx_start_bv.set_bits(); ++i) {
+        //     size_t curr_start = start_select(i);
+        //     auto [curr_col_id, curr_col_height] = idx_col_ids[curr_start];
+
+        //     while (!open_intervals.empty() && open_intervals.top().end <= curr_start) {
+        //         interval e = open_intervals.top();
+        //         open_intervals.pop();
+        //         if (open_intervals.size() == 1 && open_intervals.top().end > e.end) {
+        //             if (overlap == Overlap::Split) {
+        //                 col_runs[e.end] = 1;
+        //                 add_col_run_id(open_intervals.top().id);
+        //             }
+        //             // For append, split only if open interval has closed (not nested occurrence)
+        //             else if (e.start < open_intervals.top().start) {
+        //                 col_runs[e.end] = 1;
+        //                 add_col_run_id(open_intervals.top().id);    
+        //             }
+        //         }
+        //         else if (open_intervals.empty()){
+        //             col_runs[e.end] = 1;
+        //             add_col_run_id(0);
+        //         }
+        //     }
+
+        //     if (open_intervals.empty()) {
+        //         if (curr_col_id > 1) {
+        //             open_intervals.push({curr_start, curr_start + curr_col_height, curr_col_id});
+        //             col_runs[curr_start] = 1;
+        //             add_col_run_id(curr_col_id);
+        //         }
+        //     }
+        //     else if (overlap == Overlap::Split && open_intervals.size() == 1 && open_intervals.top().id > 1) {
+        //         open_intervals.push({curr_start, curr_start + curr_col_height, curr_col_id});
+        //         col_runs[curr_start] = 1;
+        //         add_col_run_id(1);
+        //     }
+        //     else {
+        //         open_intervals.push({curr_start, curr_start + curr_col_height, curr_col_id});
+        //     }
+        // }
+
+        // bool colored = false;
+        // ulint counter = 0;
+        // ulint colored_chars = 0;
+        // last_idx = 0;
+        // ulint last_counter = 0;
+        // for (size_t i = 0; i < n; ++i) {
+        //     if (col_runs[i]) {
+        //         last_idx = i;
+        //         last_counter = counter;
+        //         colored = col_run_ids[counter] >= 1;
+        //         ++counter;
+        //     }
+        //     if (colored) {
+        //         ++colored_chars;
+        //     }
+        //     if (colored_bv[i] && !colored) {
+        //         cout << "Colored char at: " << i << std::endl;
+        //         cout << "Last idx at " << last_idx << std::endl;
+        //         cout << "with id: " << col_run_ids[last_counter] << std::endl;
+        //     }
+        // }
+        // cout << "Colored chars: " << colored_chars << std::endl;
+
+        // size_t curr_bwt_pos = 0;
+        // size_t col_iter = 1;
+        // size_t next_col_pos = col_run_select(col_iter);  
+        // size_t curr_id = 0;
+        // size_t prev_id = 0;
+
+        // #ifdef PRINT_STATS
+        // size_t col_chars = 0;
+        // size_t col_bwt_runs = 0;
+        // size_t num_col_bits = 0;
+        // size_t last_idx = next_col_pos;
+        // #endif
+
+        // auto process_col_run = [&]() {
+        //     if (curr_id > 1 || prev_id > 1) {
+        //         col_runs[next_col_pos] = 1;
+        //         col_run_ids.push_back(curr_id);
+
+        //         #ifdef PRINT_STATS
+        //         ++col_bwt_runs;
+        //         num_col_bits += curr_id > 1;
+
+        //         if (col_iter > 1 && idx_col_ids[last_idx] > 1) {
+        //             col_chars += next_col_pos - last_idx;
+        //         }
+        //         last_idx = next_col_pos;
+        //         #endif
+        //     }
+        // };
+
+        // for (size_t i = 1; i <= tbl.runs(); ++i) {
+        //     curr_bwt_pos = bwt_run_select(i);
+
+        //     while (curr_bwt_pos >= next_col_pos) {
+        //         prev_id = curr_id;
+        //         curr_id = idx_col_ids[next_col_pos];
+        //         if (next_col_pos < curr_bwt_pos) {
+        //             process_col_run();
+        //         }
+
+        //         ++col_iter;
+        //         next_col_pos = (col_iter <= idx_start_bv.set_bits()) ? col_run_select(col_iter) : tbl.size();
+        //     }
+        //     col_runs[curr_bwt_pos] = 1;
+        //     col_run_ids.push_back(curr_id);
+        //     prev_id = curr_id;
+
+        //     #ifdef PRINT_STATS
+        //     ++col_bwt_runs;
+        //     num_col_bits += curr_id > 1;
+
+        //     if (col_iter > 1 && idx_col_ids[last_idx] > 1) {
+        //         col_chars += curr_bwt_pos - last_idx;
+        //     }
+
+        //     last_idx = curr_bwt_pos;
+        //     #endif
+        // }
+        // while(col_iter <= idx_start_bv.set_bits()) {
+        //     curr_id = idx_col_ids[next_col_pos];
+        //     process_col_run();
+        //     ++col_iter;
+        //     next_col_pos = (col_iter <= idx_start_bv.set_bits()) ? col_run_select(col_iter) : tbl.size();
+        // }
 
         #ifdef PRINT_STATS
-        cout << "Col ids: " << num_col_bits << std::endl;
-        cout << "Col runs: " << col_bwt_runs << std::endl;
+        status("Finding stats on procedure");
+        size_t col_chars = 0;
+        size_t col_id_runs = 0;
+        
+        bit_rank col_rank(&col_runs);
+        bit_select col_select(&col_runs);
+
+        size_t set_bits = col_rank(n);
+    
+        size_t last_idx = col_select(1);
+        last_id = col_run_ids[0];
+        for (size_t i = 1; i <= set_bits; ++i) {
+            size_t curr_idx = col_select(i);
+            size_t curr_id = col_run_ids[i - 1];
+            if (last_id >= 1) {
+                ++col_id_runs;
+                col_chars += curr_idx - last_idx;
+            }
+            last_idx = curr_idx;
+            last_id = curr_id;
+        }
+        if (last_id >= 1) {
+            col_chars += n - last_idx;
+            ++col_id_runs;
+        }
+        status();
+
+        cout << "Col runs: " << col_id_runs << std::endl;
+        cout << "Total runs: " << set_bits << std::endl;
         cout << "Col chars: " << col_chars << std::endl;
         #endif
     }
 
-    size_t serialize_col_runs(sd_vector<> &sdv, std::string filename) {
+    size_t serialize_col_runs(bit_vector &bv, std::string filename, bool sparse = true) {
         size_t written_bytes = 0;
 
-        std::ofstream out_runs(filename + ".col_runs");
-        written_bytes += col_runs.serialize(out_runs);
-        out_runs.close();
+        if (sparse) {
+            sdsl::sd_vector<> sd_bv(bv);
+
+            std::ofstream out_runs(filename + ".col_runs.bv");
+            written_bytes += sd_bv.serialize(out_runs);
+            out_runs.close();
+        } else {
+            std::ofstream out_runs(filename + ".col_runs.bv");
+            written_bytes += bv.serialize(out_runs);
+            out_runs.close();
+        }
 
         return written_bytes;
     }

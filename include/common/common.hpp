@@ -46,7 +46,7 @@
 #define RW_BYTES 5
 #define BWT_BYTES 5
 #ifndef ID_BITS
-    #define ID_BITS 8
+    #define ID_BITS 40
 #endif
 #define ASCII_SIZE 256
 #define PRINT_STATS
