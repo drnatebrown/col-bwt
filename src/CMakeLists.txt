@@ -29,10 +29,10 @@ target_include_directories(pml_query PUBLIC    "../include/ds"
                                         )
 target_compile_options(pml_query PUBLIC "-std=c++17")
 
-add_executable(to_run_output to_run_output.cpp)
-target_link_libraries(to_run_output sdsl malloc_count divsufsort divsufsort64 ri)
-target_include_directories(to_run_output PUBLIC    "../include/ds"
+add_executable(rlbwt_to_bwt rlbwt_to_bwt.cpp)
+target_link_libraries(rlbwt_to_bwt sdsl malloc_count divsufsort divsufsort64 ri)
+target_include_directories(rlbwt_to_bwt PUBLIC    "../include/ds"
                                         "../include"
                                         "../include/common"
                                         )
-target_compile_options(to_run_output PUBLIC "-std=c++17")
+target_compile_options(rlbwt_to_bwt PUBLIC "-std=c++17")

@@ -20,14 +20,14 @@
 namespace Options {
     /* How to split bwt runs based on cols */
     enum class Mode {
-        Default, // Split all
+        All, // Split all
         Tunneled, // Split only until FL_mapping diverges
     };
 
     /* How to handle overlapping runs */
     enum class Overlap {
         Append,  // Keep existing col_run, split to include non-overlapping parts of col run to be added
-        Split  // Split on overlaps (keep all non-overlapping parts even if it segments into multiple runs)
+        Truncate  // Stop at overlap
     };
 }
 
@@ -43,7 +43,7 @@ public:
 
     col_split(FL_t& t, Mode m, Overlap o = Overlap::Append) : tbl(t), n(tbl.size()), r(tbl.runs()), mode(m), overlap(o) {}
 
-    col_split(FL_t& t, Overlap o, Mode m = Mode::Default) : tbl(t), n(tbl.size()), r(tbl.runs()), mode(m), overlap(o) {}
+    col_split(FL_t& t, Overlap o, Mode m = Mode::All) : tbl(t), n(tbl.size()), r(tbl.runs()), mode(m), overlap(o) {}
 
     void set_mode(Mode m) {
         mode = m;
@@ -118,7 +118,7 @@ public:
 
         auto collect_ids = [&] (size_t col_span_start, size_t c_id, size_t height) {
             // For default mode, keep the largest height if overlap
-            if (mode == Mode::Default && mark_start_bv[col_span_start]) {
+            if (mode == Mode::All && mark_start_bv[col_span_start]) {
                 size_t curr_rank = rank_start(col_span_start);
                 auto [existing_id, existing_height] = marked_ids[curr_rank];
                 size_t max_height = std::max(existing_height, height);
@@ -137,7 +137,7 @@ public:
         status();
 
         // final pass resolves col run boundaries for overlaps and bwt run boundaries
-        find_col_runs(mark_start_bv, marked_ids, split_rate);
+        find_col_runs(mark_start_bv, marked_ids);
     }
 
     size_t save(string filename) {
@@ -151,14 +151,33 @@ public:
     }
 
     /* Space saving option to mod the values before saving */
-    size_t save(string filename, int id_bits) {
+    size_t save(string filename, int id_bits, bool sparse = true) {
         assert (id_bits <= sizeof(ulint) * 8);
         ulint id_max = bit_max(id_bits);
         ulint id_bytes = bits_to_bytes(id_bits); // bytes needed to store id
 
         size_t written_bytes = 0;
 
-        written_bytes += serialize_col_runs(col_runs, filename);
+        written_bytes += serialize_col_runs(col_runs, filename, sparse);
+
+        std::ofstream out_ids(filename + ".col_ids");
+        for (size_t i = 0; i < col_run_ids.size(); ++i) {
+            size_t id = col_run_ids[i];
+            if (id >= id_max) {
+                id = (id % (id_max - 1)) + 1;
+            }
+            out_ids.write(reinterpret_cast<const char*>(&id), id_bytes);
+            written_bytes += id_bytes;
+        }
+        return written_bytes;
+    }
+
+    size_t save_ids(string filename, int id_bits) {
+        assert (id_bits <= sizeof(ulint) * 8);
+        ulint id_max = bit_max(id_bits);
+        ulint id_bytes = bits_to_bytes(id_bits); // bytes needed to store id
+
+        size_t written_bytes = 0;
 
         std::ofstream out_ids(filename + ".col_ids");
         for (size_t i = 0; i < col_run_ids.size(); ++i) {
@@ -208,7 +227,7 @@ private:
     FL_t& tbl;
     ulint n = 0;
     ulint r = 0;
-    Mode mode = Mode::Default;
+    Mode mode = Mode::All;
     Overlap overlap = Overlap::Append;
 
     bit_vector col_runs;
@@ -242,7 +261,7 @@ private:
     }
 
     // Finds col runs and computes col_run_ids and col_runs
-    void find_col_runs(bitvec &idx_start_bv, vector<std::pair<ulint,ulint>> &idx_col_ids, int split_rate) {
+    void find_col_runs(bitvec &idx_start_bv, vector<std::pair<ulint,ulint>> &idx_col_ids) {
         if (idx_start_bv.set_bits() == 0) {
             return;
         }

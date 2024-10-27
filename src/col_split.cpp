@@ -33,23 +33,23 @@
 
 Options::Mode parse_mode(Args &args) {
     Options::Mode mode;
-    if (args.split_mode == "default") {
-        log("Split mode: Default (find all col runs)");
-        mode = Options::Mode::Default;
+    if (args.split_mode == "all") {
+        log("Split mode: All (find all col runs)");
+        mode = Options::Mode::All;
     } else if (args.split_mode == "tunnels") {
         log("Split mode: Tunnels (find col runs which form BWT tunnels)");
         mode = Options::Mode::Tunneled;
     } else {
-        terminal_error("Invalid split mode: " + args.split_mode + ". Must be one of: default, tunnels");
+        terminal_error("Invalid split mode: " + args.split_mode + ". Must be one of: all, tunnels");
     }
     return mode;
 }
 
 Options::Overlap parse_overlap(Args &args) {
     Options::Overlap overlap_mode;
-    if (args.overlap == "split") {
-        log("Overlap mode: Split (split col runs at overlap)");
-        overlap_mode = Options::Overlap::Split;
+    if (args.overlap == "truncate") {
+        log("Overlap mode: Truncate (split col runs at overlap)");
+        overlap_mode = Options::Overlap::Truncate;
     } else if (args.overlap == "append") {
         log("Overlap mode: Append (append overlapping col runs after existing)");
         overlap_mode = Options::Overlap::Append;
@@ -129,7 +129,7 @@ int main(int argc, char *const argv[])
     message("Serializing COL runs bitvector and IDs");
     timer.mid();
 
-    // split_ds.save(args.filename);
+    split_ds.save(args.filename, 8, false);
 
     timer.end();
     submessage("Serialization Complete");
