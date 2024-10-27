@@ -129,7 +129,7 @@ int main(int argc, char *const argv[])
     message("Serializing COL runs bitvector and IDs");
     timer.mid();
 
-    split_ds.save(args.filename, 8, false);
+    split_ds.save(args.filename, ID_BITS, false);
 
     timer.end();
     submessage("Serialization Complete");
