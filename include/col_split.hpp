@@ -6,7 +6,6 @@
 #include <fstream>
 #include <r_index.hpp>
 
-#include <iostream>
 #include <sdsl/io.hpp>
 #include <sdsl/int_vector.hpp>
 #include <malloc_count.h>
@@ -17,19 +16,14 @@
 namespace Options {
     /* How to split bwt runs based on cols */
     enum class Mode {
-        Default, // Split all
+        All, // Split all
         Tunneled, // Split only until FL_mapping diverges
-        RunAligned // Split only if cols are run aligned
-        // TunneledAll // Split only until FL_mapping diverges, but keep keep stepping in case it converges
     };
 
     /* How to handle overlapping runs */
     enum class Overlap {
         Append,  // Keep existing col_run, split to include non-overlapping parts of col run to be added
-        Split,  // Split on overlaps (keep all non-overlapping parts even if it segments into multiple runs)
-        Remove, // Remove the entirety of any col run with overlaps
-        Ignore // Remove run which overlaps with existing col run (FCFS)
-        // Largest -> maximize coverage
+        Truncate  // Stop at overlap
     };
 }
 
@@ -45,7 +39,7 @@ public:
 
     col_split(FL_t& t, Mode m, Overlap o = Overlap::Append) : tbl(t), n(tbl.size()), r(tbl.runs()), mode(m), overlap(o) {}
 
-    col_split(FL_t& t, Overlap o, Mode m = Mode::Default) : tbl(t), n(tbl.size()), r(tbl.runs()), mode(m), overlap(o) {}
+    col_split(FL_t& t, Overlap o, Mode m = Mode::All) : tbl(t), n(tbl.size()), r(tbl.runs()), mode(m), overlap(o) {}
 
     void set_mode(Mode m) {
         mode = m;
@@ -60,171 +54,126 @@ public:
     void split(vector<ulint> &col_len, vector<ulint> &col_pos, ulint N, int split_rate = 1) {
         assert(col_len.size() == col_pos.size());
 
-        status("Initializing vectors");
-        bitvec col_run_bv(n);
-        // TODO use O(r') data structure for col_ids (linked list)
-        vector<ulint> col_ids(n, 0);
-
-        // Mark all ids which would have been split if split rate was 1
-        // used to idenitfy run-aligned cols
-        phantom_ids = phantom_ids_t(n, split_rate);
-        // TODO destroy phantom_ids on exit
-        // TODO find run aligned during computation to avoid O(run_len) scans
-        // TODO for memory efficiency, use phantom_id bools and flip (keep col_ids true, use phantom_ids for false 0s, etc)
+        status("Initializing n sized bitvector");
+        bitvec mark_start_bv(n);
         status();
 
-        status("FL Stepping");
-        size_t run_start = 0;
-        size_t c_id = 2; // 0 denotes to id, 1 denotes overlap
-        vector<ulint>::iterator c_pos = col_pos.begin();
-        vector<ulint>::iterator c_len = col_len.begin();
+        auto collect_boundaries = [&] (size_t col_span_start, size_t _c_id, size_t _height) {
+            mark_start_bv.set(col_span_start);
+        };
 
-        // first pass finds col run boundaries
-        for (size_t i = 0; i < tbl.runs(); ++i) {
-            ulint run_len = tbl.get_length(i);
+        auto FL_loop = [&] (auto func) {
+            size_t run_start = 0;
+            size_t c_id = 2; // 0 denotes to id, 1 denotes overlap
+            vector<ulint>::iterator c_pos = col_pos.begin();
+            vector<ulint>::iterator c_len = col_len.begin();
+            for (size_t i = 0; i < tbl.runs(); ++i) {
+                ulint run_len = tbl.get_length(i);
 
-            // TODO Fix - N on mumemto and col_bwt side
-            while (c_pos != col_pos.end() && *c_pos - N < run_start + run_len) {
-                range rg = {i, *c_pos - N - run_start, N};
-                vector<range> FL_ranges = FL_range(rg);
+                // TODO Fix - N on mumemto and col_bwt side
+                while (c_pos != col_pos.end() && *c_pos - N < run_start + run_len) {
+                    range rg = {i, *c_pos - N - run_start, N};
+                    vector<range> FL_ranges = FL_range(rg);
 
-                bool skip_non_tunnel = (mode == Mode::Tunneled) && FL_ranges.size() > 1;
-                for (size_t j = 0; j < *c_len && !skip_non_tunnel; ++j) {
-                    vector<range> next_ranges;
-                    for (size_t k = 0; k < FL_ranges.size(); ++k) {
-                        rg = FL_ranges[k];
-                        ulint idx = tbl.get_idx(rg.interval);
-                        ulint col_span_start = idx + rg.offset;
-                        ulint col_span_end = idx + rg.offset + rg.height;
+                    bool skip_non_tunnel = (mode == Mode::Tunneled) && FL_ranges.size() > 1;
+                    for (size_t j = 0; j < *c_len && !skip_non_tunnel; ++j) {
+                        vector<range> next_ranges;
+                        for (size_t k = 0; k < FL_ranges.size(); ++k) {
+                            rg = FL_ranges[k];
 
-                        // Has boundary overlap, so skip computation for ignore/remove modes
-                        bool skip_overlap = (overlap == Overlap::Remove || overlap == Overlap::Ignore) && 
-                            (col_ids[col_span_start] > 1 || col_ids[col_span_end - 1] > 1);
-                        if (skip_overlap)
-                        {
-                            overlap_skip(col_ids, col_run_bv, col_span_start, col_span_end);
-                        }
-                        else {
-                            ulint last_id = (col_span_start > 0) ? col_ids[col_span_start - 1] : 0;
-                            for (size_t l = col_span_start; l < col_span_end && !skip_overlap; ++l) {
-                                // force split if overlapping
-                                bool force_split = false;
-                                
-                                if (col_ids[l] >= 1) {
-                                    switch (overlap) {
-                                        case Overlap::Split:
-                                            col_ids[l] = 1; // mark overlaps
-                                            phantom_ids.set(l, 1);
-                                            col_run_bv.unset(l); // Erase any col runs here; they have overlaps
-
-                                            /*
-                                            * (col_ids[l] == 1) --> overlapping, need to split regardless of split rate
-                                            * (last_id == 1) --> last run was overlapping, need to split regardless of split rate
-                                            */
-                                            force_split = col_ids[l] == 1 || last_id == 1;
-                                            break;
-                                        case Overlap::Remove: 
-                                        case Overlap::Ignore:
-                                            // TODO Can check the boundaries first to save time
-                                            overlap_skip(col_ids, col_run_bv, col_span_start, col_span_end, l);
-                                            skip_overlap = true;
-                                            break;
-                                        default: // Overlap::Append does nothing, leave unchanged
-                                            break;
-                                    }
-                                }
-                                else {
-                                    if (j % split_rate == 0) {
-                                        col_ids[l] = c_id;
-                                    }
-                                    else {
-                                        col_ids[l] = 0;
-                                    }
-
-                                    phantom_ids.set(l, c_id);
-                                }
-
-                                // Skip the rest of the loop if this col run is no longer being considered
-                                if (!skip_overlap) {
-                                    bool split_rate_met = j % split_rate == 0 && (col_ids[l] == c_id || last_id == c_id);
-                                    if (last_id != col_ids[l] && (split_rate_met || force_split)) {
-                                        col_run_bv.set(l);
-                                    }
-                                    else if (last_id == col_ids[l]) {
-                                        col_run_bv.unset(l);
-                                    }
-
-                                    last_id = col_ids[l];
-                                }
+                            if (j % split_rate == 0) 
+                            {
+                                ulint idx = tbl.get_idx(rg.interval);
+                                ulint col_span_start = idx + rg.offset;
+                                // Do some work here depending on the pass
+                                func(col_span_start, c_id, rg.height);
                             }
                             
-                            // Close run if needed
-                            if (!skip_overlap && col_span_end < n) {
-                                last_id = col_ids[col_span_end - 1];
-                                bool id_mismatch = (last_id != col_ids[col_span_end]);
-                                bool split_rate_met = (j % split_rate == 0) && (last_id == c_id);
-                                bool need_run_end = false;
-                                if (overlap == Overlap::Split) {
-                                    // End the current run if:
-                                    // i) we are at the end of a run of overlapping characters and the next is not overlapping
-                                    // ii) we are at the end of a run of non-overlapping characters and the next id does not match
-                                    bool force_split = (last_id > 1 || col_ids[col_span_end] > 0);
-                                    need_run_end = id_mismatch && (force_split || split_rate_met);
-                                }
-                                else {
-                                    need_run_end = id_mismatch && split_rate_met;
-                                }
-
-                                if (need_run_end) {
-                                    col_run_bv.set(col_span_end);
-                                }
-                                // If we can continue the run, do so
-                                else if (last_id == col_ids[col_span_end]) {
-                                    col_run_bv.unset(col_span_end);
-                                }
-                            }
+                            vector<range> curr_ranges = FL_range(rg);
+                            next_ranges.insert(next_ranges.end(), curr_ranges.begin(), curr_ranges.end());
                         }
-
-                        vector<range> curr_ranges = FL_range(rg);
-                        next_ranges.insert(next_ranges.end(), curr_ranges.begin(), curr_ranges.end());
+                        FL_ranges = next_ranges;
+                        skip_non_tunnel = (mode == Mode::Tunneled) && FL_ranges.size() > 1;
                     }
-                    FL_ranges = next_ranges;
-                    skip_non_tunnel = (mode == Mode::Tunneled) && FL_ranges.size() > 1;
+                    ++c_pos;
+                    ++c_len;
+                    ++c_id;
                 }
-                ++c_pos;
-                ++c_len;
-                ++c_id;
+                run_start += run_len;
             }
-            run_start += run_len;
-        }
+        };
+
+        status("FL Stepping to find interval boundaries");
+        FL_loop(collect_boundaries);
         status();
 
-        // second pass resolves col run boundaries with bwt run boundaries
-        find_col_runs(col_ids, col_run_bv, split_rate);
+        status("Creating new vectors for Col-IDs");
+        vector<std::pair<ulint,ulint>> marked_ids = vector<std::pair<ulint,ulint>>(mark_start_bv.set_bits(), {0,0});
+        bit_rank rank_start(&mark_start_bv.get_bv());
+        status();
+
+        auto collect_ids = [&] (size_t col_span_start, size_t c_id, size_t height) {
+            // For default mode, keep the largest height if overlap
+            if (mode == Mode::All && mark_start_bv[col_span_start]) {
+                size_t curr_rank = rank_start(col_span_start);
+                auto [existing_id, existing_height] = marked_ids[curr_rank];
+                size_t max_height = std::max(existing_height, height);
+                size_t max_id = (existing_height >= height) ? existing_id : c_id;
+                marked_ids[rank_start(col_span_start)] = {max_id, max_height};
+            }
+            // Tunnel case is easy, just mark the col run
+            else {
+                marked_ids[rank_start(col_span_start)] = {c_id, height};
+            }
+        };
+
+        // Consider collecting the col starting positions to speed up second pass
+        status("FL Stepping to fill Col-ID Values");
+        FL_loop(collect_ids);
+        status();
+
+        // final pass resolves col run boundaries for overlaps and bwt run boundaries
+        find_col_runs(mark_start_bv, marked_ids);
     }
 
-    size_t save_full(string filename) {
+    size_t save(string filename) {
         size_t written_bytes = 0;
 
         written_bytes += serialize_col_runs(col_runs, filename);
 
         std::ofstream out_ids(filename + ".col_ids");
-        for (size_t i = 0; i < col_run_ids.size(); ++i) {
-            out_ids.write(reinterpret_cast<const char*>(&col_run_ids[i]), RW_BYTES);
-            written_bytes += RW_BYTES;
-        }
+        written_bytes += write_vec(col_run_ids, out_ids);
         return written_bytes;
     }
 
     /* Space saving option to mod the values before saving */
-    size_t save(string filename, int id_bits=ID_BITS) {
+    size_t save(string filename, int id_bits, bool sparse = true) {
         assert (id_bits <= sizeof(ulint) * 8);
         ulint id_max = bit_max(id_bits);
         ulint id_bytes = bits_to_bytes(id_bits); // bytes needed to store id
 
         size_t written_bytes = 0;
 
-        written_bytes += serialize_col_runs(col_runs, filename);
+        written_bytes += serialize_col_runs(col_runs, filename, sparse);
+
+        std::ofstream out_ids(filename + ".col_ids");
+        for (size_t i = 0; i < col_run_ids.size(); ++i) {
+            size_t id = col_run_ids[i];
+            if (id >= id_max) {
+                id = (id % (id_max - 1)) + 1;
+            }
+            out_ids.write(reinterpret_cast<const char*>(&id), id_bytes);
+            written_bytes += id_bytes;
+        }
+        return written_bytes;
+    }
+
+    size_t save_ids(string filename, int id_bits) {
+        assert (id_bits <= sizeof(ulint) * 8);
+        ulint id_max = bit_max(id_bits);
+        ulint id_bytes = bits_to_bytes(id_bits); // bytes needed to store id
+
+        size_t written_bytes = 0;
 
         std::ofstream out_ids(filename + ".col_ids");
         for (size_t i = 0; i < col_run_ids.size(); ++i) {
@@ -254,7 +203,7 @@ private:
         bitvec(size_t size) : bv(size), set_count(0) {}
 
         bool operator[](size_t idx) const { return bv[idx]; }
-        bit_vector get_bv() const { return bv; }
+        bit_vector& get_bv() { return bv; }
 
         size_t size() const { return bv.size(); }
         size_t set_bits() const { return set_count; }
@@ -271,41 +220,14 @@ private:
         }
     };
 
-    struct phantom_ids_t{
-        vector<ulint> p_ids;
-        bool split_rate_used = false;
-
-        phantom_ids_t() : p_ids(), split_rate_used(false) {}
-
-        phantom_ids_t(size_t n, int split_rate) : split_rate_used(split_rate > 1) {
-            if (split_rate_used) {
-                p_ids = vector<ulint>(n, 0);
-            }
-        }
-
-        vector<ulint>& get_vec() {
-            if (!split_rate_used) {
-                error("Attempting to access p_ids when split_rate_used is false");
-            }
-            return p_ids;
-        }
-
-        void set(size_t idx, ulint id) {
-            if (split_rate_used) {
-                p_ids[idx] = id;
-            }
-        }
-    };
-
     FL_t& tbl;
     ulint n = 0;
     ulint r = 0;
-    Mode mode = Mode::Default;
+    Mode mode = Mode::All;
     Overlap overlap = Overlap::Append;
 
-    sd_vector<> col_runs;
+    bit_vector col_runs;
     vector<ulint> col_run_ids;
-    phantom_ids_t phantom_ids;
 
     vector<range> FL_range(range rg) {
         vector<range> FL_dest_ranges;
@@ -330,217 +252,141 @@ private:
         return FL_dest_ranges;
     }
 
-    // Overload to skip the current position (meaning still at col_span_start)
-    void overlap_skip(vector<ulint> &col_ids, bitvec &col_run_bv, size_t col_span_start, size_t col_span_end) {
-        overlap_skip(col_ids, col_run_bv, col_span_start, col_span_end, col_span_start);
-    }
-
-    void overlap_skip(vector<ulint> &col_ids, bitvec &col_run_bv, size_t col_span_start, size_t col_span_end, size_t col_span_curr) {
-        switch (overlap) {
-            case Overlap::Remove:
-                overlap_remove(col_ids, col_run_bv, col_span_start, col_span_end, col_span_curr);
-                break;
-            case Overlap::Ignore:
-                overlap_ignore(col_ids, col_run_bv, col_span_start, col_span_end, col_span_curr);
-                break;
-            default:
-                break;
-        }
-    }
-
-    void overlap_remove(vector<ulint> &col_ids, bitvec &col_run_bv, size_t col_span_start, size_t col_span_end, size_t col_span_curr) {
-        // Remove overlapping run moving upwards (only occurs if col_span_start is new overlap)
-        if (col_ids[col_span_start] > 1) {
-            size_t curr_pos = col_span_start;
-            size_t colliding_id = col_ids[curr_pos];
-            while (curr_pos > 0 && col_ids[curr_pos - 1] == colliding_id) {
-                col_ids[curr_pos - 1] = 1;
-                phantom_ids.set(curr_pos - 1, 1);
-                col_run_bv.unset(curr_pos - 1);
-                --curr_pos;
-            }
-            if (curr_pos > 0 && col_ids[curr_pos - 1] > 1) {
-                if (col_ids[curr_pos - 1] > 1) {
-                    col_run_bv.set(curr_pos);
-                }
-                else {
-                    col_run_bv.unset(curr_pos);
-                }
-            }
-        }
-
-        // Remove overlapping run moving downwards (only occurs if col_span_end - 1 is new overlap)      
-        if (col_ids[col_span_end - 1] > 1) {
-            size_t curr_pos = col_span_end;
-            size_t colliding_id = col_ids[curr_pos];
-            while (curr_pos < n && col_ids[curr_pos] == colliding_id) {
-                col_ids[curr_pos] = 1;
-                phantom_ids.set(curr_pos, 1);
-                col_run_bv.unset(curr_pos);
-                ++curr_pos;
-            }
-            if (curr_pos < n && col_ids[curr_pos + 1] <= 1) {
-                col_run_bv.unset(curr_pos);
-            }
-        }
-
-        // Mark current run as overlapping
-        for (size_t curr_pos = col_span_start; curr_pos < col_span_end; ++curr_pos) {
-            col_ids[curr_pos] = 1;
-            phantom_ids.set(curr_pos, 1);
-            col_run_bv.unset(curr_pos);
-        }
-        if (col_span_start > 0 && col_ids[col_span_start - 1] > 1) {
-            col_run_bv.set(col_span_start);
-        }
-    }
-
-    void overlap_ignore(vector<ulint> &col_ids, bitvec &col_run_bv, size_t col_span_start, size_t col_span_end, size_t col_span_curr) {
-        // Ignore current col run by undoing work so far
-        for (size_t curr_pos = col_span_start; curr_pos < col_span_curr; ++curr_pos) {
-            col_ids[curr_pos] = 0;
-            phantom_ids.set(curr_pos, 0);
-            col_run_bv.unset(curr_pos);
-        }
-        if (col_span_start > 0 && col_ids[col_span_start - 1] > 1) {
-            col_run_bv.set(col_span_start);
-        }
-    }
-
-    // Finds col runs and computes col_run_ids and col_runs
-    void find_col_runs(vector<ulint> &col_ids, bitvec &col_run_bv, int split_rate) {
-        #ifdef PRINT_STATS
-        size_t col_chars = 0;
-        size_t num_col_bits = 0;
-        size_t last_idx = 0;
-        #endif
-
-        sd_select col_select;
-        // Don't need bitvector, only aligns to existing runs
-        // TODO can borrow existing sparse bv from FL
-        if (mode == Mode::RunAligned) {
-            col_run_bv = bitvec(n);
-        }
-        // with these settings, we can compress the bitvector only once; print status now
-        else if (split_rate == 1) {
-            status("Creating runs bitvector");
-            col_runs = sd_vector(col_run_bv.get_bv());
-            col_select = sd_select(&col_runs);
-            status();
-        }
-        else {
-            col_runs = sd_vector(col_run_bv.get_bv());
-            col_select = sd_select(&col_runs);
-        }
-
-        status("Creating IDs vector");
-        col_run_ids = vector<ulint>();
-        size_t set_bits = col_run_bv.set_bits();
-
-        // To keep track of L_runs
-        const vector<ulint> &run_ids = (split_rate > 1) ? phantom_ids.get_vec() : col_ids;
-        size_t curr_L_run = 0;
-        size_t curr_L_len = tbl.get_L_length(curr_L_run);
-        size_t curr_L_pos = 0;
-        ulint last_id = 0;
-
-        // TODO refactor to not add runs if not needed
-        auto process_bwt_runs = [&](size_t idx) {
-            while (curr_L_run < tbl.runs() && curr_L_pos < idx) {
-                if (mode == Mode::RunAligned || !col_run_bv[curr_L_pos]) {
-                    bool run_aligned = false;
-                    bool intersects_col_split = (idx < n) && (idx < curr_L_pos + curr_L_len);
-                    // only check if run aligned mode or no id to assign, and ensure we do not intersect a colored split
-                    bool check_run_aligned = mode == Mode::RunAligned || (last_id == 0 && !intersects_col_split);
-                    if (check_run_aligned && run_ids[curr_L_pos] > 1 && (run_ids[curr_L_pos] == run_ids[curr_L_pos + curr_L_len - 1])) {
-                        ulint curr_id = run_ids[curr_L_pos];
-                        run_aligned = true;
-                        for (size_t j = curr_L_pos + 1; j < curr_L_pos + curr_L_len - 1 && run_aligned; ++j) {
-                            run_aligned = (run_ids[j] == curr_id);
-                        }
-                    }
-
-                    if (run_aligned) {
-                        col_run_bv.set(curr_L_pos);
-                        add_col_run_id(run_ids[curr_L_pos]);
-                        
-                        #ifdef PRINT_STATS
-                        col_chars += curr_L_len;
-                        ++num_col_bits;
-                        #endif
-                    }
-                    else {
-                        ulint curr_id = (mode == Mode::RunAligned) ? 0 : last_id;
-                        col_run_bv.set(curr_L_pos);
-                        add_col_run_id(curr_id);
-                    }
-                }
-
-                ++curr_L_run;
-                if (curr_L_run < tbl.runs()) {
-                    curr_L_pos = tbl.get_L_pos(curr_L_run);
-                    curr_L_len = tbl.get_L_length(curr_L_run);
-                }
-            }
-        };
-
-        // TODO add BWT runs as well
-        if (mode != Mode::RunAligned) {
-            for (size_t i = 1; i <= set_bits; ++i) {
-                size_t idx = col_select(i);
-
-                // if subsampling, look for run aligned runs to add (does not add runs compared BWT runs)
-                if (split_rate > 1) {
-                    process_bwt_runs(idx);
-                }
-
-                // Add other non-run aligned
-                add_col_run_id(col_ids[idx]);
-                last_id = col_ids[idx];
-
-                #ifdef PRINT_STATS
-                ++num_col_bits;
-                if (i > 1 && col_ids[last_idx] > 1) {
-                    col_chars += idx - last_idx;
-                }
-                last_idx = idx;
-                #endif
-            }
-            #ifdef PRINT_STATS
-            if (col_ids[last_idx] > 1) {
-                col_chars += n - last_idx;
-                ++num_col_bits;
-            }
-            #endif
-        }
-        if (split_rate > 1 || mode == Mode::RunAligned) {
-            process_bwt_runs(n);
-        }
-        status();
-
-        // Need to remake runs bv if changes were made
-        if (split_rate > 1 || mode == Options::Mode::RunAligned) {
-            status("Creating runs bitvector");
-            col_runs = sd_vector(col_run_bv.get_bv());
-            status();
-        }
-
-        #ifdef PRINT_STATS
-        cout << "Col ids: " << num_col_bits << std::endl;
-        cout << "Col chars: " << col_chars << std::endl;
-        #endif
-    }
-
     void add_col_run_id(ulint id) {
         col_run_ids.push_back((id > 1) ? id - 1 : 0);
     }
 
-    size_t serialize_col_runs(sd_vector<> &sdv, std::string filename) {
+    // Finds col runs and computes col_run_ids and col_runs
+    void find_col_runs(bitvec &idx_start_bv, vector<std::pair<ulint,ulint>> &idx_col_ids) {
+        if (idx_start_bv.set_bits() == 0) {
+            return;
+        }
+
+        status("Loading BWT run support");
+        col_runs = bit_vector(n, 0);
+        bit_select start_select(&idx_start_bv.get_bv());
+        bit_rank start_rank(&idx_start_bv.get_bv());
+
+        sdsl::sd_vector<> bwt_runs = tbl.get_L_heads();
+        sd_select bwt_run_select(&bwt_runs);
+        status();
+
+        struct interval {
+            ulint start;
+            ulint end;
+            ulint id;
+
+            bool operator<(const interval &other) const {
+                return (end < other.end) || (end == other.end && start < other.start);
+            }
+
+            bool operator>(const interval &other) const {
+                return (end > other.end) || (end == other.end && start > other.start);
+            }
+        };
+
+        std::priority_queue<interval, vector<interval>, greater<interval>> open_intervals;
+        size_t run_cursor = 1;
+        ulint curr_bwt_pos = bwt_run_select(run_cursor);
+        ulint last_id = 0;
+
+        auto update_bwt_pos = [&](size_t idx, ulint id = 0) {
+            while (run_cursor <= tbl.runs() && curr_bwt_pos < idx) {
+                col_runs[curr_bwt_pos] = 1;
+                add_col_run_id(last_id);
+                ++run_cursor;
+                curr_bwt_pos = bwt_run_select(run_cursor);
+            }
+            if (curr_bwt_pos == idx) {
+                ++run_cursor;
+                curr_bwt_pos = bwt_run_select(run_cursor);
+            }
+            last_id = id;
+        };
+
+        auto update_col_ranges = [&](size_t idx) {
+            while (!open_intervals.empty() && open_intervals.top().end <= idx) {
+                interval e = open_intervals.top();
+                open_intervals.pop();
+                if (open_intervals.size() == 1 && open_intervals.top().end > e.end) {
+                    update_bwt_pos(e.end, open_intervals.top().id);
+                    col_runs[e.end] = 1;
+                    add_col_run_id(open_intervals.top().id);
+                }
+                else if (open_intervals.empty() && e.end < idx) {
+                    update_bwt_pos(e.end, 0);
+                    col_runs[e.end] = 1;
+                    add_col_run_id(0);
+                }
+            }
+        };
+
+        status("Finding intervals of col sub-runs");
+        for (size_t i = 1; i <= idx_start_bv.set_bits(); ++i) {
+            size_t curr_start = start_select(i);
+            auto [curr_col_id, curr_col_height] = idx_col_ids[start_rank(curr_start)];
+
+            update_col_ranges(curr_start);
+
+            open_intervals.push({curr_start, curr_start + curr_col_height, curr_col_id});
+            if (open_intervals.size() == 1 && curr_col_id > 1) {
+                update_bwt_pos(curr_start, curr_col_id);
+                col_runs[curr_start] = 1;
+                add_col_run_id(curr_col_id);
+            }
+        }
+        update_col_ranges(n);
+        update_bwt_pos(n, 0);
+        status();
+
+        #ifdef PRINT_STATS
+        status("Finding stats on procedure");
+        size_t col_chars = 0;
+        size_t col_id_runs = 0;
+        
+        bit_rank col_rank(&col_runs);
+        bit_select col_select(&col_runs);
+
+        size_t set_bits = col_rank(n);
+    
+        size_t last_idx = col_select(1);
+        last_id = col_run_ids[0];
+        for (size_t i = 1; i <= set_bits; ++i) {
+            size_t curr_idx = col_select(i);
+            size_t curr_id = col_run_ids[i - 1];
+            if (last_id >= 1) {
+                ++col_id_runs;
+                col_chars += curr_idx - last_idx;
+            }
+            last_idx = curr_idx;
+            last_id = curr_id;
+        }
+        if (last_id >= 1) {
+            col_chars += n - last_idx;
+            ++col_id_runs;
+        }
+        status();
+
+        cout << "Col runs: " << col_id_runs << std::endl;
+        cout << "Total runs: " << set_bits << std::endl;
+        cout << "Col chars: " << col_chars << std::endl;
+        #endif
+    }
+
+    size_t serialize_col_runs(bit_vector &bv, std::string filename, bool sparse = true) {
         size_t written_bytes = 0;
 
-        std::ofstream out_runs(filename + ".col_runs");
-        written_bytes += col_runs.serialize(out_runs);
-        out_runs.close();
+        if (sparse) {
+            sdsl::sd_vector<> sd_bv(bv);
+
+            std::ofstream out_runs(filename + ".col_runs");
+            written_bytes += sd_bv.serialize(out_runs);
+            out_runs.close();
+        } else {
+            std::ofstream out_runs(filename + ".col_runs.bv");
+            written_bytes += bv.serialize(out_runs);
+            out_runs.close();
+        }
 
         return written_bytes;
     }

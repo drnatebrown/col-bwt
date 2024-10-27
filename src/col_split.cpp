@@ -12,7 +12,7 @@
     along with this program.  If not, see http://www.gnu.org/licenses/ .
 */
 /*!
-   \file cil_split.cpp
+   \file cid_split.cpp
    \brief Builds table supporting first-to-last mapping of BWT
    \author Nathaniel Brown
    \date 06/13/2024
@@ -33,38 +33,28 @@
 
 Options::Mode parse_mode(Args &args) {
     Options::Mode mode;
-    if (args.split_mode == "default") {
-        log("Split mode: Default (find all col runs)");
-        mode = Options::Mode::Default;
+    if (args.split_mode == "all") {
+        log("Split mode: All (find all col runs)");
+        mode = Options::Mode::All;
     } else if (args.split_mode == "tunnels") {
         log("Split mode: Tunnels (find col runs which form BWT tunnels)");
         mode = Options::Mode::Tunneled;
-    } else if (args.split_mode == "runs") {
-        log("Split mode: Runs (find col runs which are BWT run aligned, using split rate = 1)");
-        args.split_rate = 1;
-        mode = Options::Mode::RunAligned;
     } else {
-        terminal_error("Invalid split mode: " + args.split_mode + ". Must be one of: default, tunnels, runs");
+        terminal_error("Invalid split mode: " + args.split_mode + ". Must be one of: all, tunnels");
     }
     return mode;
 }
 
 Options::Overlap parse_overlap(Args &args) {
     Options::Overlap overlap_mode;
-    if (args.overlap == "split") {
-        log("Overlap mode: Split (split col runs at overlap)");
-        overlap_mode = Options::Overlap::Ignore;
-    } else if (args.overlap == "remove") {
-        log("Overlap mode: Remove (remove overlapping col runs)");
-        overlap_mode = Options::Overlap::Remove;
-    } else if (args.overlap == "ignore") {
-        log("Overlap mode: Ignore (ignore overlapping col runs, keep existing)");
-        overlap_mode = Options::Overlap::Ignore;
+    if (args.overlap == "truncate") {
+        log("Overlap mode: Truncate (split col runs at overlap)");
+        overlap_mode = Options::Overlap::Truncate;
     } else if (args.overlap == "append") {
         log("Overlap mode: Append (append overlapping col runs after existing)");
         overlap_mode = Options::Overlap::Append;
     } else {
-        terminal_error("Invalid overlap mode: " + args.overlap + ". Must be one of: split, remove, ignore, append");
+        terminal_error("Invalid overlap mode: " + args.overlap + ". Must be one of: truncate, append");
     }
     return overlap_mode;
 }
@@ -139,7 +129,7 @@ int main(int argc, char *const argv[])
     message("Serializing COL runs bitvector and IDs");
     timer.mid();
 
-    split_ds.save(args.filename);
+    split_ds.save(args.filename, 8, false);
 
     timer.end();
     submessage("Serialization Complete");

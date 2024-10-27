@@ -46,10 +46,10 @@
 #define RW_BYTES 5
 #define BWT_BYTES 5
 #ifndef ID_BITS
-    #define ID_BITS 8
+#define ID_BITS 8
 #endif
 #define ASCII_SIZE 256
-#define PRINT_STATS
+// #define PRINT_STATS
 #define MULTI_THREAD
 // #define DNA_ALPHABET
 
@@ -73,6 +73,9 @@ typedef unsigned char uchar;
 
 typedef typename sdsl::sd_vector<>::select_1_type sd_select;
 typedef typename sdsl::sd_vector<>::rank_1_type sd_rank;
+
+typedef typename sdsl::bit_vector::select_1_type bit_select;
+typedef typename sdsl::bit_vector::rank_1_type bit_rank;
 
 //*********************** Message options ***************************************
 
@@ -296,6 +299,10 @@ ulint bits_to_bytes(const ulint bits){
 
 constexpr ulint bit_max(ulint bits) {
     return 1ULL << bits;
+}
+
+size_t col_id_bin(ulint id, ulint max) {
+    return (id >= max) ? (id % (max - 1)) + 1 : id;
 }
 
 template <typename T>
