@@ -54,7 +54,7 @@ Options::Overlap parse_overlap(Args &args) {
         log("Overlap mode: Append (append overlapping col runs after existing)");
         overlap_mode = Options::Overlap::Append;
     } else {
-        terminal_error("Invalid overlap mode: " + args.overlap + ". Must be one of: split, append");
+        terminal_error("Invalid overlap mode: " + args.overlap + ". Must be one of: truncate, append");
     }
     return overlap_mode;
 }
