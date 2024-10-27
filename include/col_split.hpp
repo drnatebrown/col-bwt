@@ -4,12 +4,8 @@
 #include <FL_table.hpp>
 #include <cstddef>
 #include <fstream>
-#include <optional>
-#include <queue>
 #include <r_index.hpp>
-#include <unordered_map>
 
-#include <iostream>
 #include <sdsl/io.hpp>
 #include <sdsl/int_vector.hpp>
 #include <malloc_count.h>
