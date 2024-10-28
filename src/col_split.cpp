@@ -89,7 +89,7 @@ int main(int argc, char *const argv[])
 
     std::string filename_mums = args.filename + ".mums";
     std::ifstream mum_file(filename_mums, std::ios::binary | std::ios::ate);
-    size_t num_mums = mum_file.tellg()/(RW_BYTES*4);
+    size_t num_mums = mum_file.tellg()/(RW_BYTES*2);
 
     log("# of COL positions: ", num_mums);
     mum_file.seekg(0, std::ios::beg);
@@ -97,14 +97,9 @@ int main(int argc, char *const argv[])
     std::vector<ulint> match_lens(num_mums);
     std::vector<ulint> match_pos(num_mums);
 
-    char discard[RW_BYTES];
     for (size_t i = 0; i < num_mums; ++i) {
         mum_file.read(reinterpret_cast<char*>(&match_lens[i]), RW_BYTES);
         mum_file.read(reinterpret_cast<char*>(&match_pos[i]), RW_BYTES);
-
-        // Discard the next two values
-        mum_file.read(discard, RW_BYTES);
-        mum_file.read(discard, RW_BYTES);
     }
 
     timer.end();
