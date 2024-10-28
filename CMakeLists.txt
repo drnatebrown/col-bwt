@@ -64,3 +64,6 @@ add_subdirectory(thirdparty)
 enable_testing()
 add_subdirectory(include)
 add_subdirectory(src)
+
+# configure_file(${PROJECT_SOURCE_DIR}/scripts/build.sh ${PROJECT_BINARY_DIR}/build.sh)
+# configure_file(${PROJECT_SOURCE_DIR}/scripts/query.sh ${PROJECT_BINARY_DIR}/query.sh)

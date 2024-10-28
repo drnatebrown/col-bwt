@@ -1,20 +1,17 @@
 #!/usr/bin/env zsh
 
-# USER DEFINED VARIABLES
-DATA_DIR=/home/nbrown99/vast/col_stats/data/hprc
-DATA_NAMES=(4 8 16 32 64 88)
-CHR_DIR=/home/nbrown99/data/public/vshiv/hprc_scaffolds
-CHR_NAMES=(chr1 chr2 chr3 chr4 chr5 chr6 chr7 chr8 chr9 chr10 chr11 chr12 chr13 chr14 chr15 chr16 chr17 chr18 chr19 chr20 chr21 chr22)
+DATA_DIR=/home/nbrown99/data/public/vshiv/hprc_scaffolds/chr19
+# Names of fasta in data directory
+DATA_NAMES=(HG00438.1_chr19.fa HG01071.2_chr19.fa HG01358.1_chr19.fa HG02055.2_chr19.fa) 
+OUTPUT_DIR=/home/nbrown99/vast/col_stats/data/hprc/temp
+OUTPUT_NAME=4_chr19
 
 MUMEMTO_DIR=/home/nbrown99/repos/mumemto
+MOVI_DIR=/home/nbrown99/repos/Movi
+COL_BWT_DIR=../
+
 MIN_MUM=20
 
-PFP_THRESHOLDS_DIR=/home/nbrown99/repos/pfp-thresholds
-
-BWT_FRAG_DIR=/home/nbrown99/repos/bwt_frag
-
-# DEFINITIONS
-# alias Time='/usr/bin/time --format="Wall Time: %e\nMax Memory: %M"'
 Time() {
     /usr/bin/time --format="Wall Time: %e\nMax Memory: %M" "$@"
 }
@@ -37,57 +34,65 @@ log() {
     fi
 }
 
-col_directory=$DATA_DIR/col_data
 mumemto_prg=$MUMEMTO_DIR/build/mumemto
-pfp_thr_prg=$PFP_THRESHOLDS_DIR/build/test/src/pfp_thresholds
-col_split_build=$BWT_FRAG_DIR/temp/src/build_FL
-col_split_prg=$BWT_FRAG_DIR/temp/src/col_split
+col_split_build=$COL_BWT_DIR/dev_build/src/build_FL
+col_split_prg=$COL_BWT_DIR/dev_build/src/col_split
+rlbwt_to_bwt_prg=$COL_BWT_DIR/dev_build/src/to_run_output
+movi_build_split=$MOVI_DIR/build/movi-split
 
-# Loop over each file
-for chr in $CHR_NAMES; do
-    log_file=$DATA_DIR/$chr.tnl.log
-    echo "Processing $chr" > $log_file
-    for num in $DATA_NAMES; do
-        filename=hg.$num.$chr
-        dataset=$DATA_DIR/$filename.fa
-        dataset_fa_dir=$col_directory/$filename
-        dataset_sep=$dataset_fa_dir/$filename.fna
+log_file=$OUTPUT_DIR/$OUTPUT_NAME.log
+echo "Processing fasta files" > $log_file
 
-        big_log "[[ Processing $dataset ]]"
+$filename = $DATA_DIR/$OUTPUT_NAME
 
-        if [[ ! -d $dataset_fa_dir ]]; then
-            log "[bash]" "Creating directory $dataset_fa_dir"
-            mkdir -p "$dataset_fa_dir"
-            # Create the text file for each
-            ls -1 $CHR_DIR/$chr/*.fa | head -n $num | awk -v path="$CHR_DIR/$chr" '{print $0 " " NR}' > $dataset_fa_dir/files.txt
-        fi
+if [[ ! -d $OUTPUT_DIR ]]; then
+    log "[bash]" "Creating directory $OUTPUT_DIR"
+    mkdir -p "$OUTPUT_DIR"
+fi
 
-        N=$(wc -l $dataset_fa_dir/files.txt | awk '{print $1}')
-
-        log "Number of genomes: $N"
-
-        mum_file=$dataset_sep.mums
-        # if [[ ! -e $mum_file ]]; then
-            mumemto_filename=$dataset_fa_dir/$filename
-            log "[mumemto]" "Building RLBWT and finding MUMs of length atleast $MIN_MUM on $dataset"
-            [ -e "$dataset_sep.parse" ] && pfp_flag="-s" || pfp_flag=""
-            [ ! -e "$dataset_sep.bwt.heads" ] && bwt_flag="-R" || bwt_flag=""
-            [ ! -e "$dataset_sep.thr" ] && thr_flag="-T" || thr_flag=""
-            exec $mumemto_prg mum -i $dataset_fa_dir/files.txt -o $mumemto_filename -K -l $MIN_MUM $pfp_flag $bwt_flag $thr_flag
-            mv $mumemto_filename.mums $mum_file
-        # fi
-
-        if [[ ! -e $dataset_sep.bwt.heads || ! -e $dataset_sep.thr ]]; then
-            log "[pfp-thresholds]" "Writing RLBWT, SA, and thresholds of $dataset"
-            exec $pfp_thr_prg -r -f $dataset_fa_dir/$filename.fna
-        fi
-
-        if [[ ! -e $dataset_sep.FL_table ]]; then
-            log "[bwt_frag]" "Building FL table for $dataset"
-            exec $col_split_build $dataset_sep
-        fi
-
-        log "[bwt_frag]" "Splitting RLBWT to create runs for MUMs of $dataset"
-        exec $col_split_prg $dataset_sep -N $N >> $log_file
+dataset_files=$OUTPUT_DIR/files.txt
+if [[ ! -e $dataset_files ]]; then
+    log "[bash]" "Creating files.txt for $OUTPUT_NAME"
+    i=1
+    for seq in $DATA_NAMES; do
+        echo "$DATA_DIR/$seq $i" >> $dataset_files
+        i=$((i + 1))
     done
-done
+fi
+      
+big_log "[[ Processing $OUTPUT_NAME ]]"
+
+N=$(wc -l $dataset_files | awk '{print $1}')
+
+log "Number of sequences: $N"
+
+dataset=$OUTPUT_DIR/$OUTPUT_NAME
+dataset_sep=$OUTPUT_DIR/$OUTPUT_NAME.fa
+if [[ ! -e $dataset_sep.col_mums ]]; then
+    log "[mumemto]" "Building RLBWT, Thresholds; finding MUMs of length atleast $MIN_MUM on $filename"
+    [ -e "$dataset_sep.parse" ] && pfp_flag="-s" || pfp_flag=""
+    [ ! -e "$dataset_sep.bwt.heads" ] && bwt_flag="-R" || bwt_flag=""
+    [ ! -e "$dataset_sep.thr" ] && thr_flag="-T" || thr_flag=""
+    exec $mumemto_prg mum -i $dataset_files -o $dataset -r -K -l $MIN_MUM $pfp_flag $bwt_flag $thr_flag >> $log_file
+fi
+
+if [[ ! -e $dataset_sep.FL_table ]]; then
+    log "[col-bwt]" "Building FL table for $OUTPUT_NAME"
+    exec $col_split_build $dataset_sep >> $log_file
+fi
+
+if [[ ! -e $dataset_sep.bwt ]]; then
+    log "[col-bwt]" "Building raw BWT for $OUTPUT_NAME"
+    exec $rlbwt_to_bwt_prg $dataset_sep >> $log_file
+fi
+
+if [[ ! -e $dataset_sep.col_runs ]]; then
+    log "[col-bwt]" "Splitting RLBWT to create runs for MUMs of $filename with tunnels and split rate 10"
+    exec $col_split_prg $dataset_sep -N $N -m tunnels -v -s 10 >> $log_file
+fi
+if [[ ! -d $dataset_fa_dir/$dataset_sep.colbwt ]]; then
+    log "[col-bwt]" "Make Movi output for $filename with tunnels and split rate 10"
+    exec $movi_build_split build -f $dataset_sep -i $dataset_fa_dir/movi_split_tnl_s10
+fi
+
+log "Finished processing $filename"

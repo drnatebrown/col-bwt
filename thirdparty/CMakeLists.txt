@@ -85,29 +85,39 @@ if(NOT malloc_count_POPULATED)
     target_include_directories(memprofile PUBLIC "${malloc_count_SOURCE_DIR}")
 endif()
 
-## Add mumemto
-FetchContent_Declare(
-    mumemto
-    GIT_REPOSITORY https://github.com/drnatebrown/mumemto.git
-    GIT_TAG col_mums
-)
+# ## Add mumemto
+# FetchContent_Declare(
+#     mumemto
+#     GIT_REPOSITORY https://github.com/drnatebrown/mumemto.git
+#     GIT_TAG col_mums
+# )
   
-FetchContent_GetProperties(mumemto)
-if(NOT mumemto_POPULATED)
-    FetchContent_Populate(mumemto)
-    add_subdirectory(${mumemto_SOURCE_DIR} ${mumemto_BINARY_DIR})
-endif()
+# FetchContent_GetProperties(mumemto)
+# if(NOT mumemto_POPULATED)
+#     FetchContent_Populate(mumemto)
+#     # Ensure the mumemto project is configured and built correctly
+#     set(MUMEMTO_BUILD_DIR ${mumemto_BINARY_DIR})
+#     set(MUMEMTO_SOURCE_DIR ${mumemto_SOURCE_DIR})
+#     add_subdirectory(${MUMEMTO_SOURCE_DIR} ${MUMEMTO_BUILD_DIR})
+# endif()
+# install(TARGETS mumemto
+#     RUNTIME DESTINATION bin
+#     LIBRARY DESTINATION lib
+#     ARCHIVE DESTINATION lib
+# )
+
+# install(DIRECTORY ${mumemto_SOURCE_DIR}/include/ DESTINATION include)
 
 
-## Add Movi
-FetchContent_Declare(
-    movi
-    GIT_REPOSITORY https://github.com/drnatebrown/Movi.git
-    GIT_TAG alt_reuse_byte
-)
+# ## Add Movi
+# FetchContent_Declare(
+#     movi
+#     GIT_REPOSITORY https://github.com/drnatebrown/Movi.git
+#     GIT_TAG alt_reuse_byte
+# )
   
-FetchContent_GetProperties(movi)
-if(NOT movi_POPULATED)
-    FetchContent_Populate(movi)
-    add_subdirectory(${movi_SOURCE_DIR} ${movi_BINARY_DIR})
-endif()
+# FetchContent_GetProperties(movi)
+# if(NOT movi_POPULATED)
+#     FetchContent_Populate(movi)
+#     add_subdirectory(${movi_SOURCE_DIR} ${movi_BINARY_DIR})
+# endif()
