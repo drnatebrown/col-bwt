@@ -47,3 +47,13 @@ OUTPUT_NAME=outname
 MUMEMTO_DIR=/path/to/mumemto
 MOVI_DIR=/path/to/Movi
 ```
+
+### Query
+Update paths/config in ./scripts/query.sh
+```console
+PATTERN=/insert/path/to/pattern/fasta
+INPUT_DIR=insert/input/path
+INPUT_NAME=input
+
+MOVI_DIR=/path/to/Movi
+```
