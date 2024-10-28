@@ -84,3 +84,30 @@ if(NOT malloc_count_POPULATED)
     add_library(memprofile OBJECT ${malloc_count_SOURCE_DIR}/memprofile.h)
     target_include_directories(memprofile PUBLIC "${malloc_count_SOURCE_DIR}")
 endif()
+
+## Add mumemto
+FetchContent_Declare(
+    mumemto
+    GIT_REPOSITORY https://github.com/drnatebrown/mumemto.git
+    GIT_TAG col_mums
+)
+  
+FetchContent_GetProperties(mumemto)
+if(NOT mumemto_POPULATED)
+    FetchContent_Populate(mumemto)
+    add_subdirectory(${mumemto_SOURCE_DIR} ${mumemto_BINARY_DIR})
+endif()
+
+
+## Add Movi
+FetchContent_Declare(
+    movi
+    GIT_REPOSITORY https://github.com/drnatebrown/Movi.git
+    GIT_TAG alt_reuse_byte
+)
+  
+FetchContent_GetProperties(movi)
+if(NOT movi_POPULATED)
+    FetchContent_Populate(movi)
+    add_subdirectory(${movi_SOURCE_DIR} ${movi_BINARY_DIR})
+endif()

@@ -351,7 +351,7 @@ public:
 
     std::string get_file_extension() const
     {
-        return ".col_bwt";
+        return ".col_tbl";
     }
 
     /* serialize to the ostream
