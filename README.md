@@ -1,1 +1,1 @@
-# bwt_frag
+# col-BWT
