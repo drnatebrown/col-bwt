@@ -27,7 +27,7 @@ namespace Options {
     };
 }
 
-template <class FL_t = FL_table>
+template <class FL_t = FL_table, typename id_t = uchar, typename len_t = uint16_t>
 class col_split {
 public:
     using Mode = Options::Mode;
@@ -39,7 +39,7 @@ public:
 
     col_split(FL_t& t, Mode m, Overlap o = Overlap::Append) : tbl(t), n(tbl.size()), r(tbl.runs()), mode(m), overlap(o) {}
 
-    col_split(FL_t& t, Overlap o, Mode m = Mode::All) : tbl(t), n(tbl.size()), r(tbl.runs()), mode(m), overlap(o) {}
+    col_split(FL_t& t, Overlap o, Mode m = Mode::Tunneled) : tbl(t), n(tbl.size()), r(tbl.runs()), mode(m), overlap(o) {}
 
     void set_mode(Mode m) {
         mode = m;
@@ -51,7 +51,7 @@ public:
 
     // Split bases on Co-linear positions and lengths; assuming they have uniform height N
     // Split rate: split at this rate while forward stepping to carve out runs (all run aligned cols are split anyway)
-    void split(vector<ulint> &col_len, vector<ulint> &col_pos, ulint N, int split_rate = 1) {
+    void split(vector<ulint> &col_len, vector<ulint> &col_pos, len_t N, int split_rate = 10) {
         assert(col_len.size() == col_pos.size());
 
         status("Initializing n sized bitvector");
@@ -64,15 +64,15 @@ public:
 
         auto FL_loop = [&] (auto func) {
             size_t run_start = 0;
-            size_t c_id = 2; // 0 denotes to id, 1 denotes overlap
+            size_t c_id = 1; // 0 denotes no id
             vector<ulint>::iterator c_pos = col_pos.begin();
             vector<ulint>::iterator c_len = col_len.begin();
             for (size_t i = 0; i < tbl.runs(); ++i) {
                 ulint run_len = tbl.get_length(i);
 
                 // TODO Fix - N on mumemto and col_bwt side
-                while (c_pos != col_pos.end() && *c_pos - N < run_start + run_len) {
-                    range rg = {i, *c_pos - N - run_start, N};
+                while (c_pos != col_pos.end() && *c_pos < run_start + run_len) {
+                    range rg = {i, *c_pos - run_start, N};
                     vector<range> FL_ranges = FL_range(rg);
 
                     bool skip_non_tunnel = (mode == Mode::Tunneled) && FL_ranges.size() > 1;
@@ -108,22 +108,22 @@ public:
         status();
 
         status("Creating new vectors for Col-IDs");
-        vector<std::pair<ulint,ulint>> marked_ids = vector<std::pair<ulint,ulint>>(mark_start_bv.set_bits(), {0,0});
+        vector<std::pair<id_t, len_t>> marked_ids = vector<std::pair<id_t,len_t>>(mark_start_bv.set_bits(), {0,0});
         bit_rank rank_start(&mark_start_bv.get_bv());
         status();
 
-        auto collect_ids = [&] (size_t col_span_start, size_t c_id, size_t height) {
-            // For default mode, keep the largest height if overlap
+        auto collect_ids = [&] (size_t col_span_start, size_t c_id, len_t height) {
+            // For all mode, keep the largest height if overlap
             if (mode == Mode::All && mark_start_bv[col_span_start]) {
                 size_t curr_rank = rank_start(col_span_start);
                 auto [existing_id, existing_height] = marked_ids[curr_rank];
                 size_t max_height = std::max(existing_height, height);
                 size_t max_id = (existing_height >= height) ? existing_id : c_id;
-                marked_ids[rank_start(col_span_start)] = {max_id, max_height};
+                marked_ids[rank_start(col_span_start)] = {bin_id(max_id), max_height};
             }
             // Tunnel case is easy, just mark the col run
             else {
-                marked_ids[rank_start(col_span_start)] = {c_id, height};
+                marked_ids[rank_start(col_span_start)] = {bin_id(c_id), height};
             }
         };
 
@@ -136,20 +136,9 @@ public:
         find_col_runs(mark_start_bv, marked_ids);
     }
 
-    // size_t save(string filename) {
-    //     size_t written_bytes = 0;
-
-    //     written_bytes += serialize_col_runs(col_runs, filename);
-
-    //     std::ofstream out_ids(filename + ".col_ids");
-    //     written_bytes += write_vec(col_run_ids, out_ids);
-    //     return written_bytes;
-    // }
-
-    /* Space saving option to mod the values before saving */
-    size_t save(string filename, int id_bits = ID_BITS, bool sparse = true) {
+    size_t save(string filename, bool sparse = false, size_t id_bits = ID_BITS) {
         assert (id_bits <= sizeof(ulint) * 8);
-        ulint id_max = bit_max(id_bits);
+        ulint id_max_given = bit_max(id_bits);
         ulint id_bytes = bits_to_bytes(id_bits); // bytes needed to store id
 
         size_t written_bytes = 0;
@@ -159,8 +148,8 @@ public:
         std::ofstream out_ids(filename + ".col_ids");
         for (size_t i = 0; i < col_run_ids.size(); ++i) {
             size_t id = col_run_ids[i];
-            if (id >= id_max) {
-                id = (id % (id_max - 1)) + 1;
+            if (id >= id_max_given) {
+                id = (id % (id_max_given - 1)) + 1;
             }
             out_ids.write(reinterpret_cast<const char*>(&id), id_bytes);
             written_bytes += id_bytes;
@@ -191,7 +180,7 @@ private:
     typedef struct {
         ulint interval;
         ulint offset;
-        ulint height;
+        len_t height;
     } range;
 
     struct bitvec {
@@ -223,11 +212,17 @@ private:
     FL_t& tbl;
     ulint n = 0;
     ulint r = 0;
-    Mode mode = Mode::All;
+    Mode mode = Mode::Tunneled;
     Overlap overlap = Overlap::Append;
 
+    const ulint id_max = bit_max(ID_BITS);
+
     bit_vector col_runs;
-    vector<ulint> col_run_ids;
+    vector<id_t> col_run_ids;
+
+    id_t bin_id(ulint id) {
+        return (id >= id_max) ? (id % (id_max - 1)) + 1 : id;
+    }
 
     vector<range> FL_range(range rg) {
         vector<range> FL_dest_ranges;
@@ -237,7 +232,7 @@ private:
             const auto& [FL_interval, FL_offset] = tbl.FL(rg.interval, rg.offset);
 
             if (rg.offset + rg.height > tbl.get_length(rg.interval))  {
-                ulint covered = tbl.get_length(rg.interval) - rg.offset;
+                len_t covered = tbl.get_length(rg.interval) - rg.offset;
                 FL_dest_ranges.push_back({FL_interval, FL_offset, covered});
                 rg.height -= covered;
                 rg.offset = 0;
@@ -252,12 +247,16 @@ private:
         return FL_dest_ranges;
     }
 
-    void add_col_run_id(ulint id) {
-        col_run_ids.push_back((id > 1) ? id - 1 : 0);
+    // void add_col_run_id(ulint id) {
+    //     col_run_ids.push_back((id > 1) ? id - 1 : 0);
+    // }
+
+    void add_col_run_id(id_t id) {
+        col_run_ids.push_back(id);
     }
 
     // Finds col runs and computes col_run_ids and col_runs
-    void find_col_runs(bitvec &idx_start_bv, vector<std::pair<ulint,ulint>> &idx_col_ids) {
+    void find_col_runs(bitvec &idx_start_bv, vector<std::pair<id_t,len_t>> &idx_col_ids) {
         if (idx_start_bv.set_bits() == 0) {
             return;
         }
@@ -274,7 +273,7 @@ private:
         struct interval {
             ulint start;
             ulint end;
-            ulint id;
+            id_t id;
 
             bool operator<(const interval &other) const {
                 return (end < other.end) || (end == other.end && start < other.start);
@@ -288,9 +287,9 @@ private:
         std::priority_queue<interval, vector<interval>, greater<interval>> open_intervals;
         size_t run_cursor = 1;
         ulint curr_bwt_pos = bwt_run_select(run_cursor);
-        ulint last_id = 0;
+        id_t last_id = 0;
 
-        auto update_bwt_pos = [&](size_t idx, ulint id = 0) {
+        auto update_bwt_pos = [&](size_t idx, id_t id = 0) {
             while (run_cursor <= tbl.runs() && curr_bwt_pos < idx) {
                 col_runs[curr_bwt_pos] = 1;
                 add_col_run_id(last_id);
@@ -329,7 +328,7 @@ private:
             update_col_ranges(curr_start);
 
             open_intervals.push({curr_start, curr_start + curr_col_height, curr_col_id});
-            if (open_intervals.size() == 1 && curr_col_id > 1) {
+            if (open_intervals.size() == 1 && curr_col_id > 0) {
                 update_bwt_pos(curr_start, curr_col_id);
                 col_runs[curr_start] = 1;
                 add_col_run_id(curr_col_id);
@@ -379,11 +378,11 @@ private:
         if (sparse) {
             sdsl::sd_vector<> sd_bv(bv);
 
-            std::ofstream out_runs(filename + ".col_runs");
+            std::ofstream out_runs(filename + ".col_runs.sv");
             written_bytes += sd_bv.serialize(out_runs);
             out_runs.close();
         } else {
-            std::ofstream out_runs(filename + ".col_runs.bv");
+            std::ofstream out_runs(filename + ".col_runs");
             written_bytes += bv.serialize(out_runs);
             out_runs.close();
         }
