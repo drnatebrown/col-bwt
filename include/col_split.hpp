@@ -51,8 +51,13 @@ public:
 
     // Split bases on Co-linear positions and lengths; assuming they have uniform height N
     // Split rate: split at this rate while forward stepping to carve out runs (all run aligned cols are split anyway)
-    void split(vector<ulint> &col_len, vector<ulint> &col_pos, ulint N, int split_rate = 1) {
+    void split(vector<ulint> &col_len, vector<ulint> &col_pos, ulint N, int split_rate = 1, int gap_rate = 20) {
         assert(col_len.size() == col_pos.size());
+
+        vector<ulint> ids_per_start;
+        if (gap_rate > 0) {
+            ids_per_start = find_mum_blocks(col_len, col_pos, N, gap_rate);
+        }
 
         status("Initializing n sized bitvector");
         bitvec mark_start_bv(n);
@@ -64,7 +69,11 @@ public:
 
         auto FL_loop = [&] (auto func) {
             size_t run_start = 0;
+            size_t curr_col = 0;
             size_t c_id = 2; // 0 denotes to id, 1 denotes overlap
+            if (gap_rate > 0) {
+                c_id = ids_per_start[curr_col];
+            }
             vector<ulint>::iterator c_pos = col_pos.begin();
             vector<ulint>::iterator c_len = col_len.begin();
             for (size_t i = 0; i < tbl.runs(); ++i) {
@@ -97,7 +106,13 @@ public:
                     }
                     ++c_pos;
                     ++c_len;
-                    ++c_id;
+                    ++curr_col;
+                    if (gap_rate > 0) {
+                        c_id = ids_per_start[curr_col];
+                    }
+                    else {
+                        ++c_id;
+                    }
                 }
                 run_start += run_len;
             }
@@ -228,6 +243,78 @@ private:
 
     bit_vector col_runs;
     vector<ulint> col_run_ids;
+
+    vector<ulint> find_mum_blocks(const vector<size_t> &col_len, const vector<size_t> &col_pos, ulint N, ulint gap_rate) {
+        status("Assigning Col-IDs by finding co-linear MUM blocks");
+        bitvec sa_starts_bv(n);
+        vector<ulint> ids_per_start = vector<ulint>(col_pos.size());
+
+        vector<ulint>::const_iterator c_pos = col_pos.begin();
+        while (c_pos != col_pos.end()) {
+            sa_starts_bv.set(*c_pos - N);
+            ++c_pos;
+        }
+    
+        bit_rank first_rank = bit_rank(&sa_starts_bv.get_bv());
+        bit_select first_select = bit_select(&sa_starts_bv.get_bv());
+
+        std::pair<ulint, ulint> curr_pos = {0, 0};
+        size_t c_id = 2;
+        ids_per_start[0] = c_id++; // fix weird error
+        size_t visited = 0;
+        size_t curr_mum_len = 0; 
+        size_t curr_gap = 0;
+        bool in_mum = 0;
+        #ifdef PRINT_STATS
+        size_t steps = 0;
+        #endif
+        while (visited <= col_pos.size()) {
+            ulint idx = tbl.get_idx(curr_pos.first) + curr_pos.second;
+            ulint last_rank = first_rank(idx+1);
+            ulint last_idx = (last_rank > 0) ? first_select(last_rank) : 0;
+            bool see_mum = (last_rank > 0 && idx - last_idx < N);
+
+            if (see_mum) {
+                if (!in_mum && curr_gap > gap_rate) {
+                    ++c_id;
+                }
+
+                ids_per_start[last_rank] = c_id;
+                curr_mum_len = col_len[last_rank];
+                curr_gap = 0;
+                ++visited;
+                in_mum = true;
+            }
+            else if (in_mum) {
+                if (curr_mum_len > 1) {
+                    --curr_mum_len;
+                } else {
+                    in_mum = false;
+                    curr_mum_len = 0;
+                    curr_gap = 0;
+                }
+            }
+            else {
+                ++curr_gap;
+            }
+
+            curr_pos = tbl.FL(curr_pos.first, curr_pos.second);
+            #ifdef PRINT_STATS
+            ++steps;
+            #endif
+        }
+        status();
+
+        #ifdef PRINT_STATS
+        cout << "IDs used: " << c_id - 1 << endl;
+        cout << "  # Cols: " << col_pos.size() << endl;
+        cout << " Visited: " << visited - 1 << endl;
+        cout << "   Steps: " << steps << endl;
+        cout << "     n/d: " << n/N << endl;
+        #endif
+
+        return ids_per_start;
+    }
 
     vector<range> FL_range(range rg) {
         vector<range> FL_dest_ranges;

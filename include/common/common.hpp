@@ -49,7 +49,7 @@
 #define ID_BITS 8
 #endif
 #define ASCII_SIZE 256
-// #define PRINT_STATS
+#define PRINT_STATS
 #define MULTI_THREAD
 // #define DNA_ALPHABET
 
