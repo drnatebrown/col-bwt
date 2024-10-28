@@ -85,16 +85,17 @@ int main(int argc, char *const argv[])
     timer.startTime();
 
     timer.mid();
-    message("Loading COL Positions: ");
+    message("Loading multi-MUM Positions: ");
 
     std::string filename_mums = args.filename + ".col_mums";
     std::ifstream mum_file(filename_mums, std::ios::binary | std::ios::ate);
-    // size_t num_docs = 0;
-    // mum_file.read(reinterpret_cast<char*>(&num_docs), RW_BYTES);
-    size_t num_mums = mum_file.tellg()/(RW_BYTES*2);
+    size_t file_values = mum_file.tellg()/(RW_BYTES);
+    size_t num_mums = (file_values - 1)/2;
 
-    log("# of COL positions: ", num_mums);
+    log("# of multi-MUM positions: ", num_mums);
     mum_file.seekg(0, std::ios::beg);
+    size_t num_docs = 0;
+    mum_file.read(reinterpret_cast<char*>(&num_docs), RW_BYTES);
 
     std::vector<ulint> match_lens(num_mums);
     std::vector<ulint> match_pos(num_mums);
@@ -108,16 +109,16 @@ int main(int argc, char *const argv[])
     submessage("Load Complete");
     timer.midTime();
 
-    message("Splitting runs based on COL Positions using FL Table");
+    message("Splitting runs based on multi-MUM Positions using FL Table");
     timer.mid();
 
     Options::Mode mode = parse_mode(args);
     Options::Overlap overlap = parse_overlap(args);
-    log("N, # sequences in collection: ", args.N);
+    log("N, # sequences in collection: ", num_docs);
     log("Split rate: ", args.split_rate);
 
     col_split<> split_ds(tbl, mode, overlap);
-    split_ds.split(match_lens, match_pos, args.N, args.split_rate);
+    split_ds.split(match_lens, match_pos, num_docs, args.split_rate);
 
     timer.end();
     submessage("Splitting Complete");

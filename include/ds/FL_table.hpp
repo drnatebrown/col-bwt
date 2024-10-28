@@ -291,10 +291,10 @@ public:
         sdsl::nullstream ns;
         size_t L_runs_size = L_heads.serialize(ns);
         log("Memory (bytes):");
-        log("   FL Table: ", r + 4*r*BWT_BYTES + L_runs_size);
-        log("           Chars: ", r);
-        log("            Ints: ", r*BWT_BYTES);
-        log("          L Runs: ", L_runs_size);
+        log("   FL Table: ", sizeof(FL_row)*r);
+        log("    L Heads: ", L_runs_size);
+        log("       Ints: ", sizeof(n) + sizeof(r));
+        log("      Total: ", sizeof(FL_row)*r + L_runs_size + sizeof(n) + sizeof(r));
     }
 
     /* serialize to the ostream
