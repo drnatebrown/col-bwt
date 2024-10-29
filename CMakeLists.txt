@@ -65,5 +65,5 @@ enable_testing()
 add_subdirectory(include)
 add_subdirectory(src)
 
-# configure_file(${PROJECT_SOURCE_DIR}/scripts/build.sh ${PROJECT_BINARY_DIR}/build.sh)
-# configure_file(${PROJECT_SOURCE_DIR}/scripts/query.sh ${PROJECT_BINARY_DIR}/query.sh)
+configure_file(${PROJECT_SOURCE_DIR}/scripts/col-bwt.py ${PROJECT_BINARY_DIR}/col-bwt COPYONLY)
+execute_process(COMMAND chmod u+x ${PROJECT_BINARY_DIR}/col-bwt)
