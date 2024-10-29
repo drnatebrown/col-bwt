@@ -45,6 +45,7 @@ Example:
 ```
 Builds a ``col-bwt`` stored in directory ``./data/index_files``, using multi-MUM tunnels and sub-sampling rate 10, over the documents ``seq1.fa``,``seq2.fa`` and their reverse compliment.
 
+Input Format:
 ``-i`` is an override expecting a path to a file of genomes, one per line, with their space delimited "class", e.g.
 ```console
 /path/to/seq1.fa 1
@@ -52,6 +53,7 @@ Builds a ``col-bwt`` stored in directory ``./data/index_files``, using multi-MUM
 /path/to/seq3.fa 3
 /path/to/seq4.fa 4
 ```
+If run with positional arguments, a file ``[PREFIX]_filelist.txt`` is generated. It is highly recommended to use ``-i`` with this file when running the build script again. Since many steps are skipped if intermediate files are already generated, this ensures they are to the expected dataset.
 
 #### Query Command:
 Use ``-h`` for help
