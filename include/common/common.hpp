@@ -44,14 +44,14 @@
 
 /* CONFIGURABLE */
 #define RW_BYTES 5
-#define BWT_BYTES 5
-#ifndef ID_BITS
 #define ID_BITS 8
-#endif
 #define ASCII_SIZE 256
-// #define PRINT_STATS
+#define PRINT_STATS
 #define MULTI_THREAD
 // #define DNA_ALPHABET
+#define BWT_BYTES 5
+#define RUN_BYTES 4
+#define LEN_BYTES 2
 
 /* NOT CONFIGURABLE */
 #ifdef DNA_ALPHABET
@@ -63,6 +63,8 @@
 #endif
 
 #define BWT_BITS (BWT_BYTES * 8)
+#define RUN_BITS (RUN_BYTES * 8)
+#define LEN_BITS (LEN_BYTES * 8)
 #define ID_BYTES bits_to_bytes(ID_BITS)
 
 bool verbose = false;

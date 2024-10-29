@@ -67,7 +67,7 @@ public:
     void load(std::istream &in)
     {
         size_t temp;
-        in.read((char *)&temp, BWT_BYTES);
+        in.read((char *)&temp, ID_BYTES);
         col_id = temp;
 
         LF_row::load(in);
@@ -346,15 +346,12 @@ public:
     void mem_stats()
     {
         log("Memory (bytes):");
-        log("   Col BWT: ", bits_to_bytes(this->r*ALPHABET_BITS + 3*this->r*BWT_BITS + this->r*ID_BITS));
-        log("           Chars: ", bits_to_bytes(this->r*ALPHABET_BITS));
-        log("            Ints: ", bits_to_bytes(this->r*BWT_BITS));
-        log("             IDs: ", bits_to_bytes(this->r*ID_BITS));
+        log("   Col BWT: ", sizeof(row_t)*this->r);
     }
 
     std::string get_file_extension() const
     {
-        return ".col_bwt";
+        return ".col_tbl";
     }
 
     /* serialize to the ostream

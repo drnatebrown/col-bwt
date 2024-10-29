@@ -35,8 +35,8 @@ class LF_row
 public:
     uchar character : ALPHABET_BITS;
     ulint idx : BWT_BITS;
-    ulint interval : BWT_BITS;
-    ulint offset : BWT_BITS;
+    ulint interval : RUN_BITS;
+    ulint offset : LEN_BITS;
 
     LF_row() {}
 
@@ -56,12 +56,12 @@ public:
         written_bytes += BWT_BYTES;
 
         temp = interval;
-        out.write((char *)&temp, BWT_BYTES);
-        written_bytes += BWT_BYTES;
+        out.write((char *)&temp, RUN_BYTES);
+        written_bytes += LEN_BYTES;
 
         temp = offset;
-        out.write((char *)&temp, BWT_BYTES);
-        written_bytes += BWT_BYTES;
+        out.write((char *)&temp, LEN_BYTES);
+        written_bytes += LEN_BYTES;
 
         return written_bytes;
     }
@@ -75,10 +75,10 @@ public:
         in.read((char *)&temp, BWT_BYTES);
         idx = temp;
 
-        in.read((char *)&temp, BWT_BYTES);
+        in.read((char *)&temp, RUN_BYTES);
         interval = temp;
 
-        in.read((char *)&temp, BWT_BYTES);
+        in.read((char *)&temp, LEN_BYTES);
         offset = temp;
     }
 } __attribute__((packed));

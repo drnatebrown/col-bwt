@@ -39,8 +39,8 @@ public:
     {
         char character;
         ulint idx : BWT_BITS;
-        ulint interval : BWT_BITS;
-        ulint offset : BWT_BITS;
+        ulint interval : RUN_BITS;
+        ulint offset : LEN_BITS;
 
         size_t serialize(std::ostream &out)
         {
@@ -54,12 +54,12 @@ public:
             written_bytes += BWT_BYTES;
 
             temp = interval;
-            out.write((char *)&temp, BWT_BYTES);
-            written_bytes += BWT_BYTES;
+            out.write((char *)&temp, RUN_BYTES);
+            written_bytes += RUN_BYTES;
 
             temp = offset;
-            out.write((char *)&temp, BWT_BYTES);
-            written_bytes += BWT_BYTES;
+            out.write((char *)&temp, LEN_BYTES);
+            written_bytes += LEN_BYTES;
 
             return written_bytes;
         }
@@ -72,10 +72,10 @@ public:
             in.read((char *)&temp, BWT_BYTES);
             idx = temp;
 
-            in.read((char *)&temp, BWT_BYTES);
+            in.read((char *)&temp, RUN_BYTES);
             interval = temp;
 
-            in.read((char *)&temp, BWT_BYTES);
+            in.read((char *)&temp, LEN_BYTES);
             offset = temp;
         }
     } __attribute__((packed));
@@ -291,10 +291,10 @@ public:
         sdsl::nullstream ns;
         size_t L_runs_size = L_heads.serialize(ns);
         log("Memory (bytes):");
-        log("   FL Table: ", r + 4*r*BWT_BYTES + L_runs_size);
-        log("           Chars: ", r);
-        log("            Ints: ", r*BWT_BYTES);
-        log("          L Runs: ", L_runs_size);
+        log("   FL Table: ", sizeof(FL_row)*r);
+        log("    L Heads: ", L_runs_size);
+        log("       Ints: ", sizeof(n) + sizeof(r));
+        log("      Total: ", sizeof(FL_row)*r + L_runs_size + sizeof(n) + sizeof(r));
     }
 
     /* serialize to the ostream

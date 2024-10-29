@@ -32,9 +32,6 @@ endif()
 # Set C++ Standard.
 set(CMAKE_CXX_STANDARD 17)
 
-set(ID_BITS 8 CACHE STRING "Number of bits for ID")
-add_definitions(-DID_BITS=${ID_BITS})
-
 # Set the actual flags.
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall")
 #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror")
@@ -67,3 +64,6 @@ add_subdirectory(thirdparty)
 enable_testing()
 add_subdirectory(include)
 add_subdirectory(src)
+
+configure_file(${PROJECT_SOURCE_DIR}/scripts/col-bwt.py ${PROJECT_BINARY_DIR}/col-bwt COPYONLY)
+execute_process(COMMAND chmod u+x ${PROJECT_BINARY_DIR}/col-bwt)
