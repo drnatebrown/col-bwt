@@ -1,4 +1,4 @@
-# col-BWT
+# col-bwt
 Alpha Version 0.2.0
 
 # How-to
