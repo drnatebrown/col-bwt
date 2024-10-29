@@ -115,7 +115,7 @@ def build(args):
 
     else:
         N = len(args.fastas)
-    big_log(f"Number of sequences: {N}\n")
+    big_log(f"Number of documents: {N}\n")
 
     flags = []
     files_created = [mum_file]
