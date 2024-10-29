@@ -9,7 +9,8 @@
          /  /    \/ /\     \/  / __/ _ \| |_____| '_ \ \ /\ / / __|    \ 
         /  /      \/  \/\   \ | (_| (_) | |_____| |_) \ V  V /| |_      \ 
       _/__/_______/___/__\___\_\___\___/|_|     |_.__/ \_/\_/  \__|______\_
-Alpha Version 0.2.1
+
+                                                        Alpha Version 0.2.1
 ```
 
 Pangenomic index computing PMLs and chain staistics by using multi-MUMs.
