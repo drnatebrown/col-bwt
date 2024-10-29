@@ -9,8 +9,8 @@
          /  /    \/ /\     \/  / __/ _ \| |_____| '_ \ \ /\ / / __|    \ 
         /  /      \/  \/\   \ | (_| (_) | |_____| |_) \ V  V /| |_      \ 
       _/__/_______/___/__\___\_\___\___/|_|     |_.__/ \_/\_/  \__|______\_
-```
 Alpha Version 0.2.1
+```
 
 Pangenomic index computing PMLs and chain staistics by using multi-MUMs.
 
@@ -69,8 +69,7 @@ Generates ``pattern.fa.split.pml.bin`` and ``pattern.fa.cid.bin``, the *pseudo m
 # Thirdparty
 * [malloc_count](https://github.com/bingmann/malloc_count)
 * [sdsl-lite](https://github.com/simongog/sdsl-lite)
-    * [divufsort](https://github.com/simongog/libdivsufsort) 
-* [r-index](https://github.com/nicolaprezza/r-index.git)
+    * [divufsort](https://github.com/simongog/libdivsufsort)
 * [klib](https://github.com/attractivechaos/klib.git)
 * [mumemto](https://github.com/vikshiv/mumemto.git)
 * [Movi](https://github.com/mohsenzakeri/Movi.git)
