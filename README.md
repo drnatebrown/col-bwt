@@ -6,8 +6,8 @@ Alpha Version 0.2.0
 
 Clone and Compile:
 ```console
-git clone https://github.com/drnatebrown/r-index-f.git
-cd r-index-f
+git clone https://github.com/drnatebrown/col-bwt.git
+cd col-bwt
 
 mkdir build && cd build
 cmake ..
