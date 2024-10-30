@@ -74,6 +74,5 @@ Generates ``pattern.fa.split.pml.bin`` and ``pattern.fa.cid.bin``, the *pseudo m
 * [malloc_count](https://github.com/bingmann/malloc_count)
 * [sdsl-lite](https://github.com/simongog/sdsl-lite)
     * [divufsort](https://github.com/simongog/libdivsufsort)
-* [klib](https://github.com/attractivechaos/klib.git)
 * [mumemto](https://github.com/drnatebrown/mumemto.git)\*
 * [Movi](https://github.com/drnatebrown/Movi.git)\*
