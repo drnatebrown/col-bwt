@@ -42,7 +42,7 @@ See help for available commands:
 #### Build Command:
 Use ``-h`` for help
 ```console
-./col-bwt build [-h] [-i INPUT] -o OUTPUT [-r] [-m MODE] [-s SUB_SAMPLE] [-l MIN_MUM]
+./col-bwt build [-h] [-i INPUT] -o OUTPUT [-r REV_COMP] [-m MODE] [-s SUB_SAMPLE] [-l MIN_MUM]
                      [-v] [--force] [--keep] [--clean]
                      [fastas ...]
 ```
