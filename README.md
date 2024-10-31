@@ -71,7 +71,7 @@ Example:
 ```console
 ./col-bwt query -o -p ./data/pattern.fa ./data/index_files
 ```
-Generates ``pattern.fa.split.pml.bin`` and ``pattern.fa.cid.bin``, the *pseudo matching lengths* and *chain statistics respectively*.
+Generates ``pattern.fa.split.pml.bin`` and ``pattern.fa.cid.bin``, the *pseudo matching lengths* and *chain statistics* respectively.
 
 # Thirdparty
 \* *denotes fork modified for this tool*
