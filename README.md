@@ -15,6 +15,8 @@
 
 Pangenomic index computing *pseudo matching lengths* and *chain staistics* by using multi-MUMs.
 # Description
+*Full paper on* [*bioRxiv*](https://www.biorxiv.org/content/10.1101/2024.10.29.620953v1)*.*
+
 We identify *sub-runs* of the BWT which correspond to multi-maximal unique matches (multi-MUMs) with respect to sequences in a collection. Multi-MUMs are identified efficiently using [*mumemto*](https://github.com/vikshiv/mumemto), then mapped to the BWT using our algorithm to build an index using [*Movi*](https://github.com/mohsenzakeri/Movi) [1]. This supports computing *matching statistics* or its derivative *pseudo matching lengths* [2] in $O(m)$-time for a pattern $P[1..m]$, at the same time outputting their *chain statistics* describing which multi-MUM the match occurs in. By choosing to mark sub-runs which can be *tunneled* [3] we construct an index in $O(r+n/d)$-space; $d$ is the number of documents (sequences) in the collection, $n$ the length of the concatenated collection, and $r$ the number of runs of its $BWT$. In pangenome contexts, $n/d$ is the average genome length, and does not grow substantially with the number of sequences.
 
 Chain statistics describe which conserved region an exact match falls in. Remarkably, this allows for distinct matches to be “chained” (i.e. found to either be co-linear or not co-linear with respect to the collection) in linear time. With sufficient coverage, this improves read classification accuracy: on 64 human haplotypes of HPRC, ~80% of bases belong to a multi-MUM. This allows us to *color* seed hits, shown as peaks below, among those found by computing *matching statistics*.
@@ -81,7 +83,11 @@ Generates ``pattern.fa.split.pml.bin`` and ``pattern.fa.cid.bin``, the *pseudo m
 * [mumemto](https://github.com/drnatebrown/mumemto.git)\*
 * [Movi](https://github.com/drnatebrown/Movi.git)\*
 
-# Citations
+# Citation
+If using col-bwt or chain staitstics in an academic setting please cite:
+>Brown, N. K., Shivakumar, V. S., & Langmead, B. (2024). Improved pangenomic classification accuracy with chain statistics. bioRxiv. doi:10.1101/2024.10.29.620953
+
+# References
 [1] Zakeri, M., Brown, N. K., Ahmed, O. Y., Gagie, T., & Langmead, B. (2023). Movi: a fast and cache-efficient full-text pangenome index. bioRxiv.  
 [2] Uwe Baier (2018). On Undetected Redundancy in the Burrows-Wheeler Transform. In Annual Symposium on Combinatorial Pattern Matching, CPM 2018, 3:1–3:15.  
 [3] Ahmed, O., Rossi, M., Kovaka, S., Schatz, M. C., Gagie, T., Boucher, C., & Langmead, B. (2021). Pan-genomic matching statistics for targeted nanopore sequencing. Iscience, 24(6).  
