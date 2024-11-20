@@ -84,7 +84,7 @@ Generates ``pattern.fa.split.pml.bin`` and ``pattern.fa.cid.bin``, the *pseudo m
 * [Movi](https://github.com/drnatebrown/Movi.git)\*
 
 # Citation
-If using col-bwt or chain staitstics in an academic setting please cite:
+If using col-bwt or chain statistics in an academic setting please cite:
 >Brown, N. K., Shivakumar, V. S., & Langmead, B. (2024). Improved pangenomic classification accuracy with chain statistics. bioRxiv. doi:10.1101/2024.10.29.620953
 
 # References
