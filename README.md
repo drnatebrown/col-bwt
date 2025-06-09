@@ -10,7 +10,7 @@
         /  /      \/  \/\   \ | (_| (_) | |_____| |_) \ V  V /| |_      \ 
       _/__/_______/___/__\___\_\___\___/|_|     |_.__/ \_/\_/  \__|______\_
 
-                                                        Alpha Version 0.2.1
+                                                        Release Version 1.0.0
 ```
 
 Pangenomic index computing *pseudo matching lengths* and *chain staistics* by using multi-MUMs.
